@@ -15,6 +15,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", healthHandler)
+	mux.Handle("GET /metrics", metricsHandler())
 
 	server := &http.Server{
 		Addr:    addr,
