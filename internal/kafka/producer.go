@@ -1,0 +1,77 @@
+package kafka
+
+import (
+	"context"
+	"crypto/tls"
+	"fmt"
+	"time"
+
+	kafkago "github.com/segmentio/kafka-go"
+	"github.com/segmentio/kafka-go/sasl/plain"
+	"github.com/vivekspatil/gitstream/internal/events"
+)
+
+type Producer struct {
+	writer *kafkago.Writer
+}
+
+type ProducerConfig struct {
+	Brokers  []string
+	Topic    string
+	Username string
+	Password string
+}
+
+// NewProducer creates a Kafka writer for accepted GitHub events.
+func NewProducer(config ProducerConfig) (*Producer, error) {
+	if len(config.Brokers) == 0 {
+		return nil, fmt.Errorf("kafka brokers are required")
+	}
+	if config.Topic == "" {
+		return nil, fmt.Errorf("kafka topic is required")
+	}
+
+	writer := &kafkago.Writer{
+		Addr:                   kafkago.TCP(config.Brokers...),
+		Topic:                  config.Topic,
+		Balancer:               &kafkago.Hash{},
+		RequiredAcks:           kafkago.RequireOne,
+		BatchTimeout:           100 * time.Millisecond,
+		AllowAutoTopicCreation: true,
+		Transport:              newTransport(config),
+	}
+
+	return &Producer{writer: writer}, nil
+}
+
+// Publish writes the raw GitHub event payload using repo name as the Kafka key.
+func (p *Producer) Publish(ctx context.Context, event events.GitHubEvent) error {
+	message := kafkago.Message{
+		Key:   []byte(event.RepoName),
+		Value: event.Payload,
+	}
+	if err := p.writer.WriteMessages(ctx, message); err != nil {
+		return fmt.Errorf("write kafka message: %w", err)
+	}
+	return nil
+}
+
+func (p *Producer) Close() error {
+	return p.writer.Close()
+}
+
+func newTransport(config ProducerConfig) kafkago.RoundTripper {
+	if config.Username == "" || config.Password == "" {
+		return nil
+	}
+
+	return &kafkago.Transport{
+		TLS: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		},
+		SASL: plain.Mechanism{
+			Username: config.Username,
+			Password: config.Password,
+		},
+	}
+}

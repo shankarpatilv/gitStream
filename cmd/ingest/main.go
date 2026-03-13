@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/vivekspatil/gitstream/internal/events"
+	"github.com/vivekspatil/gitstream/internal/kafka"
 )
 
 func main() {
@@ -20,6 +21,18 @@ func main() {
 	if githubToken == "" {
 		slog.Warn("github token not configured; polling without authentication")
 	}
+
+	producer, err := kafka.NewProducer(kafka.ProducerConfig{
+		Brokers:  envList("KAFKA_BROKERS", "localhost:9092"),
+		Topic:    env("KAFKA_TOPIC", "github-events"),
+		Username: env("KAFKA_USERNAME", ""),
+		Password: env("KAFKA_PASSWORD", ""),
+	})
+	if err != nil {
+		slog.Error("could not create kafka producer", "error", err)
+		return
+	}
+	defer producer.Close()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", healthHandler)
@@ -35,6 +48,7 @@ func main() {
 		&http.Client{Timeout: 10 * time.Second},
 		githubToken,
 		events.NewDeduper(events.DefaultDeduperLimit),
+		producer,
 		30*time.Second,
 	)
 
