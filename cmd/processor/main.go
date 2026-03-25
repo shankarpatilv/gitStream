@@ -1,8 +1,13 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
+
+	"github.com/vivekspatil/gitstream/internal/kafka"
 )
 
 func main() {
@@ -26,4 +31,27 @@ func main() {
 		"worker_count", cfg.workerCount,
 	)
 	slog.Info("processor configuration validated", "service", service)
+
+	ctx, stop := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
+	defer stop()
+
+	consumer, err := kafka.NewConsumer(kafka.ConsumerConfig{
+		Brokers:       cfg.kafkaBrokers,
+		Topic:         cfg.kafkaTopic,
+		ConsumerGroup: cfg.consumerGroup,
+		Username:      cfg.kafkaUsername,
+		Password:      cfg.kafkaPassword,
+	})
+	if err != nil {
+		slog.Error("could not create kafka consumer", "service", service, "error", err)
+		os.Exit(1)
+	}
+
+	runConsumer(ctx, consumer)
+	closeConsumer(consumer)
+	slog.Info("service stopped", "service", service)
 }
