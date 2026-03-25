@@ -14,8 +14,8 @@ type messageConsumer interface {
 	Close() error
 }
 
-// runConsumer fetches Kafka messages without committing offsets yet.
-func runConsumer(ctx context.Context, consumer messageConsumer) {
+// runConsumer fetches Kafka messages and enqueues decoded events for workers.
+func runConsumer(ctx context.Context, consumer messageConsumer, jobs chan<- job) {
 	for {
 		message, err := consumer.FetchMessage(ctx)
 		if err != nil {
@@ -33,7 +33,16 @@ func runConsumer(ctx context.Context, consumer messageConsumer) {
 			continue
 		}
 
-		logDecodedMessage(message, event)
+		enqueueJob(ctx, jobs, job{message: message, event: event})
+	}
+}
+
+func enqueueJob(ctx context.Context, jobs chan<- job, next job) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case jobs <- next:
+		return true
 	}
 }
 
@@ -50,9 +59,10 @@ func logMalformedMessage(message kafka.Message, err error) {
 }
 
 // logDecodedMessage records Kafka metadata and normalized event fields.
-func logDecodedMessage(message kafka.Message, event events.GitHubEvent) {
+func logDecodedMessage(message kafka.Message, event events.GitHubEvent, workerID int) {
 	slog.Info(
-		"decoded kafka message",
+		"processed kafka message",
+		"worker_id", workerID,
 		"topic", message.Topic,
 		"partition", message.Partition,
 		"offset", message.Offset,
