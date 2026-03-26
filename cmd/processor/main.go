@@ -30,6 +30,7 @@ func main() {
 		"service", service,
 		"kafka_brokers", cfg.kafkaBrokers,
 		"kafka_topic", cfg.kafkaTopic,
+		"kafka_dlq_topic", cfg.dlqTopic,
 		"consumer_group", cfg.consumerGroup,
 		"worker_count", cfg.workerCount,
 	)
@@ -54,10 +55,22 @@ func main() {
 		os.Exit(1)
 	}
 
+	dlqProducer, err := kafka.NewProducer(kafka.ProducerConfig{
+		Brokers:  cfg.kafkaBrokers,
+		Topic:    cfg.dlqTopic,
+		Username: cfg.kafkaUsername,
+		Password: cfg.kafkaPassword,
+	})
+	if err != nil {
+		slog.Error("could not create dlq producer", "service", service, "error", err)
+		os.Exit(1)
+	}
+
 	jobs := make(chan job, jobCapacity)
-	startWorkers(ctx, cfg.workerCount, jobs)
+	startWorkers(ctx, cfg.workerCount, jobs, dlqProducer)
 
 	runConsumer(ctx, consumer, jobs)
 	closeConsumer(consumer)
+	closeDLQProducer(dlqProducer)
 	slog.Info("service stopped", "service", service)
 }
