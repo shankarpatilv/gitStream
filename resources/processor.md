@@ -7,23 +7,27 @@ The current processor flow is:
 ```text
 Kafka topic github-events
   -> processor consumer group gitstream-processors
-  -> log topic, partition, offset, and key
+  -> decode GitHub event
+  -> bounded worker pool
+  -> retry failures
+  -> write raw event to Postgres
+  -> publish exhausted failures to github-events-dlq
 ```
 
-At this stage the processor does not decode events, start workers, write to
-Postgres, write to ClickHouse, or commit offsets.
+At this stage the processor does not write to ClickHouse or commit offsets.
 
 ## Requirements
 
 - Go 1.23+
 - Docker Desktop
 - Local Kafka from `docker-compose.yml`
+- Local Postgres from `docker-compose.yml`
 
 ## Start Kafka
 
 ```sh
-docker compose up -d kafka
-docker compose ps kafka
+docker compose up -d kafka postgres
+docker compose ps kafka postgres
 ```
 
 Expected status:
@@ -31,6 +35,79 @@ Expected status:
 ```text
 Up ... (healthy)
 ```
+
+## Verify Postgres
+
+Use Docker Compose environment variables inside the Postgres container. This
+avoids putting real local passwords in commands or in this public file.
+
+```sh
+docker compose exec postgres sh -c \
+  'PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT current_user, current_database();"'
+```
+
+## Check The Events Table
+
+After the processor has started at least once, it should create the `events`
+table automatically:
+
+```sh
+docker compose exec postgres sh -c \
+  'PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\dt"'
+```
+
+Expected table:
+
+```text
+events
+```
+
+Check indexes:
+
+```sh
+docker compose exec postgres sh -c \
+  'PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\di events*"'
+```
+
+Expected indexes include:
+
+```text
+events_pkey
+events_created_at_idx
+events_repo_created_at_idx
+```
+
+## Query Stored Events
+
+Show recent raw events:
+
+```sh
+docker compose exec postgres sh -c \
+  'PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT id, type, repo_name, actor_name, created_at FROM events ORDER BY created_at DESC LIMIT 10;"'
+```
+
+Check one event by ID:
+
+```sh
+docker compose exec postgres sh -c \
+  'PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT id, type, repo_name, actor_name FROM events WHERE id = '\''task8-postgres-1'\'';"'
+```
+
+Check duplicate protection:
+
+```sh
+docker compose exec postgres sh -c \
+  'PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT id, COUNT(*) FROM events GROUP BY id HAVING COUNT(*) > 1;"'
+```
+
+Expected result:
+
+```text
+0 rows
+```
+
+The processor inserts with `ON CONFLICT (id) DO NOTHING`, so reprocessed Kafka
+messages should not create duplicate raw event rows.
 
 ## Create Topic
 

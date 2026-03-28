@@ -6,13 +6,20 @@ import (
 	"sync"
 )
 
-func startWorkers(ctx context.Context, count int, jobs <-chan job, dlq dlqPublisher) <-chan struct{} {
+// startWorkers starts a bounded set of processors and reports when all exit.
+func startWorkers(
+	ctx context.Context,
+	count int,
+	jobs <-chan job,
+	dlq dlqPublisher,
+	sink eventSink,
+) <-chan struct{} {
 	var wg sync.WaitGroup
 	wg.Add(count)
 	for id := 1; id <= count; id++ {
 		go func(workerID int) {
 			defer wg.Done()
-			runWorker(ctx, workerID, jobs, dlq)
+			runWorker(ctx, workerID, jobs, dlq, sink)
 		}(id)
 	}
 
@@ -24,7 +31,8 @@ func startWorkers(ctx context.Context, count int, jobs <-chan job, dlq dlqPublis
 	return done
 }
 
-func runWorker(ctx context.Context, id int, jobs <-chan job, dlq dlqPublisher) {
+// runWorker drains queued jobs until shutdown cancellation or channel close.
+func runWorker(ctx context.Context, id int, jobs <-chan job, dlq dlqPublisher, sink eventSink) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -35,11 +43,15 @@ func runWorker(ctx context.Context, id int, jobs <-chan job, dlq dlqPublisher) {
 				slog.Info("processor worker drained", "worker_id", id)
 				return
 			}
-			handleJob(ctx, id, next, dlq, processJob, sleepWithContext)
+			process := func(ctx context.Context, workerID int, next job) error {
+				return processJob(ctx, workerID, next, sink)
+			}
+			handleJob(ctx, id, next, dlq, process, sleepWithContext)
 		}
 	}
 }
 
+// handleJob routes exhausted processing failures to the DLQ.
 func handleJob(
 	ctx context.Context,
 	workerID int,
@@ -60,12 +72,4 @@ func handleJob(
 		"error", err,
 	)
 	publishFailedJob(ctx, workerID, next, dlq)
-}
-
-func processJob(ctx context.Context, workerID int, job job) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	logDecodedMessage(job.message, job.event, workerID)
-	return nil
 }
