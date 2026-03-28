@@ -3,12 +3,25 @@ package main
 import (
 	"context"
 	"log/slog"
+	"sync"
 )
 
-func startWorkers(ctx context.Context, count int, jobs <-chan job, dlq dlqPublisher) {
+func startWorkers(ctx context.Context, count int, jobs <-chan job, dlq dlqPublisher) <-chan struct{} {
+	var wg sync.WaitGroup
+	wg.Add(count)
 	for id := 1; id <= count; id++ {
-		go runWorker(ctx, id, jobs, dlq)
+		go func(workerID int) {
+			defer wg.Done()
+			runWorker(ctx, workerID, jobs, dlq)
+		}(id)
 	}
+
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	return done
 }
 
 func runWorker(ctx context.Context, id int, jobs <-chan job, dlq dlqPublisher) {
@@ -17,8 +30,12 @@ func runWorker(ctx context.Context, id int, jobs <-chan job, dlq dlqPublisher) {
 		case <-ctx.Done():
 			slog.Info("processor worker stopped", "worker_id", id, "error", ctx.Err())
 			return
-		case job := <-jobs:
-			handleJob(ctx, id, job, dlq, processJob, sleepWithContext)
+		case next, ok := <-jobs:
+			if !ok {
+				slog.Info("processor worker drained", "worker_id", id)
+				return
+			}
+			handleJob(ctx, id, next, dlq, processJob, sleepWithContext)
 		}
 	}
 }
