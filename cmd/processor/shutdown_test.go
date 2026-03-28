@@ -42,7 +42,7 @@ func TestWaitForWorkersTimesOutAndCancelsWorkers(t *testing.T) {
 func TestWorkersExitWhenContextIsCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	jobs := make(chan job)
-	workersDone := startWorkers(ctx, 1, jobs, &fakeDLQPublisher{})
+	workersDone := startWorkers(ctx, 1, jobs, &fakeDLQPublisher{}, &fakeEventSink{})
 
 	cancel()
 
@@ -60,7 +60,7 @@ func TestWorkersDrainClosedJobsChannel(t *testing.T) {
 	jobs <- retryTestJob("event-2")
 	close(jobs)
 
-	workersDone := startWorkers(ctx, 1, jobs, &fakeDLQPublisher{})
+	workersDone := startWorkers(ctx, 1, jobs, &fakeDLQPublisher{}, &fakeEventSink{})
 
 	select {
 	case <-workersDone:
