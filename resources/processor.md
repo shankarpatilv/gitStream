@@ -11,23 +11,26 @@ Kafka topic github-events
   -> bounded worker pool
   -> retry failures
   -> write raw event to Postgres
+  -> write analytics batches to ClickHouse
   -> publish exhausted failures to github-events-dlq
 ```
 
-At this stage the processor does not write to ClickHouse or commit offsets.
+At this stage the processor writes Postgres and ClickHouse but does not commit
+offsets.
 
 ## Requirements
 
-- Go 1.23+
+- Go 1.25+
 - Docker Desktop
 - Local Kafka from `docker-compose.yml`
 - Local Postgres from `docker-compose.yml`
+- Local ClickHouse from `docker-compose.yml`
 
 ## Start Kafka
 
 ```sh
-docker compose up -d kafka postgres
-docker compose ps kafka postgres
+docker compose up -d kafka postgres clickhouse
+docker compose ps kafka postgres clickhouse
 ```
 
 Expected status:
@@ -108,6 +111,45 @@ Expected result:
 
 The processor inserts with `ON CONFLICT (id) DO NOTHING`, so reprocessed Kafka
 messages should not create duplicate raw event rows.
+
+## Verify ClickHouse
+
+Use Docker Compose environment variables inside the ClickHouse container. This
+keeps real local credentials out of the command and this public file.
+
+```sh
+docker compose exec clickhouse sh -c \
+  'clickhouse-client --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --database "$CLICKHOUSE_DB" --query "SELECT currentDatabase()"'
+```
+
+After the processor has started at least once, it should create both analytics
+tables automatically:
+
+```sh
+docker compose exec clickhouse sh -c \
+  'clickhouse-client --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --database "$CLICKHOUSE_DB" --query "SHOW TABLES"'
+```
+
+Expected tables:
+
+```text
+events_hourly
+events_timeseries
+```
+
+Query hourly aggregates:
+
+```sh
+docker compose exec clickhouse sh -c \
+  'clickhouse-client --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --database "$CLICKHOUSE_DB" --query "SELECT hour, repo_name, event_type, sum(count) AS total FROM events_hourly GROUP BY hour, repo_name, event_type ORDER BY hour DESC LIMIT 10"'
+```
+
+Query time-series rows:
+
+```sh
+docker compose exec clickhouse sh -c \
+  'clickhouse-client --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --database "$CLICKHOUSE_DB" --query "SELECT timestamp, repo_name, event_type FROM events_timeseries ORDER BY timestamp DESC LIMIT 10"'
+```
 
 ## Create Topic
 
