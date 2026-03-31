@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"log/slog"
+
+	"github.com/vivekspatil/gitstream/internal/kafka"
 )
 
 type dlqPublisher interface {
@@ -10,7 +12,7 @@ type dlqPublisher interface {
 	Close() error
 }
 
-func publishFailedJob(ctx context.Context, workerID int, next job, dlq dlqPublisher) {
+func publishFailedJob(ctx context.Context, workerID int, next job, dlq dlqPublisher) bool {
 	if err := dlq.PublishRaw(ctx, next.message.Key, next.message.Value); err != nil {
 		slog.Error(
 			"dlq publish failed",
@@ -18,7 +20,7 @@ func publishFailedJob(ctx context.Context, workerID int, next job, dlq dlqPublis
 			"event_id", next.event.ID,
 			"error", err,
 		)
-		return
+		return false
 	}
 
 	processorFailedEvents.Inc()
@@ -30,6 +32,33 @@ func publishFailedJob(ctx context.Context, workerID int, next job, dlq dlqPublis
 		"partition", next.message.Partition,
 		"offset", next.message.Offset,
 	)
+	return true
+}
+
+func publishMalformedMessage(
+	ctx context.Context,
+	message kafka.Message,
+	dlq dlqPublisher,
+) bool {
+	if err := dlq.PublishRaw(ctx, message.Key, message.Value); err != nil {
+		slog.Error(
+			"malformed message dlq publish failed",
+			"topic", message.Topic,
+			"partition", message.Partition,
+			"offset", message.Offset,
+			"error", err,
+		)
+		return false
+	}
+
+	processorFailedEvents.Inc()
+	slog.Warn(
+		"published malformed message to dlq",
+		"topic", message.Topic,
+		"partition", message.Partition,
+		"offset", message.Offset,
+	)
+	return true
 }
 
 func closeDLQProducer(producer dlqPublisher) {
