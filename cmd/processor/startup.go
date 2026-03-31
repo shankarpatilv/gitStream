@@ -22,6 +22,10 @@ func logStartupConfig(cfg config) {
 		"postgres_port", cfg.postgresPort,
 		"postgres_db", cfg.postgresDB,
 		"postgres_user", cfg.postgresUser,
+		"clickhouse_host", cfg.clickHouseHost,
+		"clickhouse_port", cfg.clickHousePort,
+		"clickhouse_db", cfg.clickHouseDB,
+		"clickhouse_user", cfg.clickHouseUser,
 	)
 }
 
@@ -40,6 +44,25 @@ func openPostgresStore(ctx context.Context, cfg config) (*storage.PostgresStore,
 	if err := store.EnsureSchema(ctx); err != nil {
 		store.Close()
 		return nil, fmt.Errorf("ensure postgres schema: %w", err)
+	}
+	return store, nil
+}
+
+// openClickHouseStore connects to ClickHouse and prepares analytics tables.
+func openClickHouseStore(ctx context.Context, cfg config) (*storage.ClickHouseStore, error) {
+	store, err := storage.NewClickHouseStore(ctx, storage.ClickHouseConfig{
+		Host:     cfg.clickHouseHost,
+		Port:     cfg.clickHousePort,
+		Database: cfg.clickHouseDB,
+		User:     cfg.clickHouseUser,
+		Password: cfg.clickHousePass,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := store.EnsureSchema(ctx); err != nil {
+		store.Close()
+		return nil, fmt.Errorf("ensure clickhouse schema: %w", err)
 	}
 	return store, nil
 }

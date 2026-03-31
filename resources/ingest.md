@@ -14,7 +14,7 @@ GitHub Public Events API
 
 ## Requirements
 
-- Go 1.23+
+- Go 1.25+
 - Docker Desktop
 - Local Kafka from `docker-compose.yml`
 

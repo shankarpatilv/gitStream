@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/vivekspatil/gitstream/internal/kafka"
+	"github.com/vivekspatil/gitstream/internal/storage"
 )
 
 func main() {
@@ -57,6 +58,19 @@ func main() {
 	}
 	defer postgresStore.Close()
 
+	clickHouseStore, err := openClickHouseStore(consumerCtx, cfg)
+	if err != nil {
+		slog.Error("could not open clickhouse", "service", service, "error", err)
+		os.Exit(1)
+	}
+	defer closeClickHouseStore(clickHouseStore)
+	// ClickHouse prefers batches, but workers still wait for flush results.
+	clickHouseSink := storage.NewClickHouseBatchSink(
+		clickHouseStore,
+		clickHouseBatchSize,
+		clickHouseFlushInterval,
+	)
+
 	jobs := make(chan job, jobCapacity)
 	workerCtx, cancelWorkers := context.WithCancel(context.Background())
 	defer cancelWorkers()
@@ -65,12 +79,15 @@ func main() {
 		cfg.workerCount,
 		jobs,
 		dlqProducer,
-		postgresStore,
+		dualEventSink{postgres: postgresStore, clickHouse: clickHouseSink},
 	)
 
 	runConsumer(consumerCtx, consumer, jobs)
 	close(jobs)
-	waitForWorkers(workersDone, workerDrainTimeout, cancelWorkers)
+	// Closing the ClickHouse sink after workers drain flushes the final partial batch.
+	if waitForWorkers(workersDone, workerDrainTimeout, cancelWorkers) {
+		closeClickHouseBatchSink(clickHouseSink)
+	}
 	closeConsumer(consumer)
 	closeDLQProducer(dlqProducer)
 	slog.Info("service stopped", "service", service)
