@@ -14,7 +14,13 @@ type messageConsumer interface {
 }
 
 // runConsumer fetches Kafka messages and enqueues decoded events for workers.
-func runConsumer(ctx context.Context, consumer messageConsumer, jobs chan<- job) {
+func runConsumer(
+	ctx context.Context,
+	consumer messageConsumer,
+	jobs chan<- job,
+	dlq dlqPublisher,
+	offsets *offsetTracker,
+) {
 	for {
 		message, err := consumer.FetchMessage(ctx)
 		if err != nil {
@@ -25,10 +31,12 @@ func runConsumer(ctx context.Context, consumer messageConsumer, jobs chan<- job)
 			slog.Error("kafka fetch failed", "error", err)
 			continue
 		}
+		offsets.Register(message)
 
 		event, err := decodeMessageEvent(message)
 		if err != nil {
 			logMalformedMessage(message, err)
+			handleMalformedMessage(ctx, message, dlq, offsets)
 			continue
 		}
 
@@ -36,6 +44,26 @@ func runConsumer(ctx context.Context, consumer messageConsumer, jobs chan<- job)
 			slog.Info("kafka consumer enqueue stopped", "error", ctx.Err())
 			return
 		}
+	}
+}
+
+func handleMalformedMessage(
+	ctx context.Context,
+	message kafka.Message,
+	dlq dlqPublisher,
+	offsets *offsetTracker,
+) {
+	if !publishMalformedMessage(ctx, message, dlq) {
+		return
+	}
+	if err := offsets.Complete(ctx, message); err != nil {
+		slog.Error(
+			"kafka offset commit failed",
+			"topic", message.Topic,
+			"partition", message.Partition,
+			"offset", message.Offset,
+			"error", err,
+		)
 	}
 }
 
