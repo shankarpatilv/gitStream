@@ -1,21 +1,50 @@
 package main
 
 import (
-	"bufio"
-	"errors"
-	"log/slog"
 	"os"
 	"strings"
 )
 
-const defaultAPIPort = "8090"
+const (
+	defaultAPIPort        = "8090"
+	defaultPostgresHost   = "localhost"
+	defaultPostgresPort   = "5432"
+	defaultPostgresDB     = "gitstream"
+	defaultPostgresUser   = "gitstream"
+	defaultClickHouseHost = "localhost"
+	defaultClickHousePort = "9000"
+	defaultClickHouseDB   = "gitstream"
+	defaultClickHouseUser = "gitstream"
+)
 
 type config struct {
-	port string
+	port           string
+	postgresHost   string
+	postgresPort   string
+	postgresDB     string
+	postgresUser   string
+	postgresPass   string
+	clickHouseHost string
+	clickHousePort string
+	clickHouseDB   string
+	clickHouseUser string
+	clickHousePass string
 }
 
 func loadConfig() config {
-	return config{port: envOrDefault("API_PORT", defaultAPIPort)}
+	return config{
+		port:           envOrDefault("API_PORT", defaultAPIPort),
+		postgresHost:   envOrDefault("POSTGRES_HOST", defaultPostgresHost),
+		postgresPort:   envOrDefault("POSTGRES_PORT", defaultPostgresPort),
+		postgresDB:     envOrDefault("POSTGRES_DB", defaultPostgresDB),
+		postgresUser:   envOrDefault("POSTGRES_USER", defaultPostgresUser),
+		postgresPass:   envOrDefault("POSTGRES_PASSWORD", ""),
+		clickHouseHost: envOrDefault("CLICKHOUSE_HOST", defaultClickHouseHost),
+		clickHousePort: envOrDefault("CLICKHOUSE_NATIVE_PORT", defaultClickHousePort),
+		clickHouseDB:   envOrDefault("CLICKHOUSE_DB", defaultClickHouseDB),
+		clickHouseUser: envOrDefault("CLICKHOUSE_USER", defaultClickHouseUser),
+		clickHousePass: envOrDefault("CLICKHOUSE_PASSWORD", ""),
+	}
 }
 
 func envOrDefault(key, fallback string) string {
@@ -24,43 +53,4 @@ func envOrDefault(key, fallback string) string {
 		return fallback
 	}
 	return value
-}
-
-// loadDotEnv keeps local settings in ignored .env without adding a dependency.
-func loadDotEnv(path string) {
-	file, err := os.Open(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return
-	}
-	if err != nil {
-		slog.Warn("could not read env file", "path", path, "error", err)
-		return
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		setEnvLine(scanner.Text())
-	}
-	if err := scanner.Err(); err != nil {
-		slog.Warn("could not scan env file", "path", path, "error", err)
-	}
-}
-
-func setEnvLine(line string) {
-	line = strings.TrimSpace(line)
-	if line == "" || strings.HasPrefix(line, "#") {
-		return
-	}
-
-	key, value, ok := strings.Cut(line, "=")
-	if !ok {
-		return
-	}
-	key = strings.TrimSpace(key)
-	value = strings.Trim(strings.TrimSpace(value), `"'`)
-	if key == "" || os.Getenv(key) != "" {
-		return
-	}
-	os.Setenv(key, value)
 }

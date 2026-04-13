@@ -6,7 +6,9 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func newRouter() http.Handler {
+func newRouter(checker healthChecker) http.Handler {
 	router := chi.NewRouter()
+	router.Get("/health", healthHandler(checker))
+	router.Handle("/metrics", metricsHandler())
 	return router
 }
