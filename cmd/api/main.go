@@ -20,8 +20,11 @@ func main() {
 	loadDotEnv(".env")
 	cfg := loadConfig()
 	server := &http.Server{
-		Addr:    ":" + cfg.port,
-		Handler: newRouter(newHealthChecker(cfg)),
+		Addr: ":" + cfg.port,
+		Handler: newRouter(apiDependencies{
+			health:   newHealthChecker(cfg),
+			trending: clickHouseTrendingStore{cfg: cfg},
+		}),
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
