@@ -21,7 +21,7 @@ func main() {
 	cfg := loadConfig()
 	server := &http.Server{
 		Addr:    ":" + cfg.port,
-		Handler: newRouter(),
+		Handler: newRouter(newHealthChecker(cfg)),
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
