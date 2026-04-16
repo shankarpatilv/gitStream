@@ -22,8 +22,9 @@ func main() {
 	server := &http.Server{
 		Addr: ":" + cfg.port,
 		Handler: newRouter(apiDependencies{
-			health:   newHealthChecker(cfg),
-			trending: clickHouseTrendingStore{cfg: cfg},
+			health:       newHealthChecker(cfg),
+			trending:     clickHouseTrendingStore{cfg: cfg},
+			recentEvents: postgresRecentEventsStore{cfg: cfg},
 		}),
 	}
 

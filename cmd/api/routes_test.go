@@ -13,7 +13,8 @@ func testDependencies() apiDependencies {
 			postgres:   stubPinger{},
 			clickHouse: stubPinger{},
 		},
-		trending: &stubTrendingStore{},
+		trending:     &stubTrendingStore{},
+		recentEvents: &stubRecentEventsStore{},
 	}
 }
 
