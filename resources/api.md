@@ -83,6 +83,20 @@ with Prometheus text-format metrics in the response body.
 
 ## Trending Repositories
 
+Seed synthetic ClickHouse data intentionally when you want a predictable API
+test without waiting for live GitHub traffic:
+
+```sh
+go run ./cmd/seed-clickhouse
+```
+
+The default inserts `100000` synthetic events into ClickHouse analytics tables.
+For a quick smoke test, use fewer rows:
+
+```sh
+go run ./cmd/seed-clickhouse -rows=1000 -batch-size=250 -prefix=smoke
+```
+
 Query ClickHouse-backed trending repositories:
 
 ```sh
@@ -151,4 +165,10 @@ Run the ClickHouse integration test for trending queries:
 set -a; source .env; set +a; \
 GITSTREAM_INTEGRATION=1 \
 go test ./internal/storage -run ClickHouseStoreIntegrationTrendingRepos -count=1 -v
+```
+
+Run the seed command tests:
+
+```sh
+go test ./cmd/seed-clickhouse
 ```
