@@ -15,6 +15,7 @@ func testDependencies() apiDependencies {
 		},
 		trending:     &stubTrendingStore{},
 		recentEvents: &stubRecentEventsStore{},
+		breakdown:    &stubBreakdownStore{},
 	}
 }
 
