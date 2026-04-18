@@ -10,6 +10,7 @@ type apiDependencies struct {
 	health       healthChecker
 	trending     trendingStore
 	recentEvents recentEventsStore
+	breakdown    breakdownStore
 }
 
 func newRouter(deps apiDependencies) http.Handler {
@@ -18,5 +19,6 @@ func newRouter(deps apiDependencies) http.Handler {
 	router.Handle("/metrics", metricsHandler())
 	router.Get("/api/trending", trendingHandler(deps.trending))
 	router.Get("/api/events/recent", recentEventsHandler(deps.recentEvents))
+	router.Get("/api/stats/breakdown", breakdownHandler(deps.breakdown))
 	return router
 }
