@@ -27,6 +27,7 @@ func main() {
 			recentEvents: postgresRecentEventsStore{cfg: cfg},
 			breakdown:    clickHouseBreakdownStore{cfg: cfg},
 			contributors: postgresContributorsStore{cfg: cfg},
+			pipeline:     newPipelineStats(time.Now()),
 		}),
 	}
 

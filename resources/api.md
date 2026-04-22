@@ -291,6 +291,53 @@ curl -i 'localhost:8090/api/stats/breakdown?hours=0'
 curl -i 'localhost:8090/api/stats/breakdown?hours=bad'
 ```
 
+## Pipeline Stats
+
+Query API-owned in-memory pipeline counters:
+
+```sh
+curl -i 'localhost:8090/api/stats/pipeline'
+```
+
+Expected:
+
+```text
+HTTP/1.1 200 OK
+```
+
+with a deterministic JSON shape:
+
+```json
+{
+  "status": "ok",
+  "started_at": "2026-05-08T20:00:00Z",
+  "uptime_seconds": 10,
+  "events_ingested_total": 0,
+  "events_processed_total": 0,
+  "events_failed_total": 0
+}
+```
+
+The v1 endpoint is read-only and reports in-memory counters owned by the API
+process. The counters start at zero when the API process starts.
+
+## All Endpoint Smoke Test
+
+After starting the API, these are the seven locked read-only endpoints:
+
+```sh
+curl -i localhost:8090/health
+curl -i localhost:8090/metrics
+curl -i 'localhost:8090/api/trending?hours=24&limit=5'
+curl -i 'localhost:8090/api/events/recent?repo=codex/recent&limit=5'
+curl -i 'localhost:8090/api/stats/breakdown?hours=24'
+curl -i 'localhost:8090/api/contributors/top?repo=codex/contributors&limit=10'
+curl -i 'localhost:8090/api/stats/pipeline'
+```
+
+Expected result: each endpoint returns a stable response shape and no endpoint
+mutates data.
+
 ## Tests
 
 Run the normal suite:

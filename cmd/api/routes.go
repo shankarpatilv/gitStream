@@ -12,6 +12,7 @@ type apiDependencies struct {
 	recentEvents recentEventsStore
 	breakdown    breakdownStore
 	contributors contributorsStore
+	pipeline     pipelineStatsReader
 }
 
 func newRouter(deps apiDependencies) http.Handler {
@@ -22,5 +23,6 @@ func newRouter(deps apiDependencies) http.Handler {
 	router.Get("/api/events/recent", recentEventsHandler(deps.recentEvents))
 	router.Get("/api/stats/breakdown", breakdownHandler(deps.breakdown))
 	router.Get("/api/contributors/top", contributorsHandler(deps.contributors))
+	router.Get("/api/stats/pipeline", pipelineStatsHandler(deps.pipeline))
 	return router
 }
