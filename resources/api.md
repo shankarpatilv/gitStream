@@ -202,6 +202,60 @@ curl -i 'localhost:8090/api/events/recent'
 curl -i 'localhost:8090/api/events/recent?repo=codex/recent&limit=0'
 ```
 
+## Top Contributors
+
+Insert sample raw events for a repo directly into local Postgres:
+
+```sh
+docker compose exec -T postgres sh -c \
+  'PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+INSERT INTO events (id, type, repo_name, actor_name, created_at, payload)
+VALUES
+  ('api-contrib-1', 'PushEvent', 'codex/contributors', 'alice', now() - interval '3 minutes', '{}'::jsonb),
+  ('api-contrib-2', 'IssuesEvent', 'codex/contributors', 'alice', now() - interval '2 minutes', '{}'::jsonb),
+  ('api-contrib-3', 'WatchEvent', 'codex/contributors', 'bob', now() - interval '1 minute', '{}'::jsonb)
+ON CONFLICT (id) DO NOTHING;
+SQL
+```
+
+Query Postgres-backed top contributors:
+
+```sh
+curl -i 'localhost:8090/api/contributors/top?repo=codex/contributors&limit=10'
+```
+
+Expected:
+
+```text
+HTTP/1.1 200 OK
+```
+
+with contributors ordered by count:
+
+```json
+{
+  "repo": "codex/contributors",
+  "limit": 10,
+  "contributors": [
+    {
+      "actor_name": "alice",
+      "count": 2
+    },
+    {
+      "actor_name": "bob",
+      "count": 1
+    }
+  ]
+}
+```
+
+Missing `repo` or bad `limit` values should return `400`:
+
+```sh
+curl -i 'localhost:8090/api/contributors/top'
+curl -i 'localhost:8090/api/contributors/top?repo=codex/contributors&limit=0'
+```
+
 ## Event Breakdown
 
 Query ClickHouse-backed event-type counts:
@@ -259,6 +313,14 @@ Run the ClickHouse integration test for event breakdown queries:
 set -a; source .env; set +a; \
 GITSTREAM_INTEGRATION=1 \
 go test ./internal/storage -run ClickHouseStoreIntegrationEventBreakdown -count=1 -v
+```
+
+Run the Postgres integration test for top contributors:
+
+```sh
+set -a; source .env; set +a; \
+GITSTREAM_INTEGRATION=1 \
+go test ./internal/storage -run PostgresStoreIntegrationTopContributors -count=1 -v
 ```
 
 Run the seed command tests:
