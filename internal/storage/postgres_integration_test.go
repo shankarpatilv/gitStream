@@ -3,6 +3,8 @@ package storage
 import (
 	"testing"
 	"time"
+
+	"github.com/vivekspatil/gitstream/internal/events"
 )
 
 func TestPostgresStoreIntegrationInsertAndRead(t *testing.T) {
@@ -76,5 +78,47 @@ func TestPostgresStoreIntegrationRecentEvents(t *testing.T) {
 	}
 	if events[0].ID != newer.ID || events[1].ID != older.ID {
 		t.Fatalf("events ordered as %q then %q", events[0].ID, events[1].ID)
+	}
+}
+
+func TestPostgresStoreIntegrationTopContributors(t *testing.T) {
+	requireIntegration(t)
+	ctx := integrationContext(t)
+
+	store, err := NewPostgresStore(ctx, integrationPostgresConfig())
+	if err != nil {
+		t.Fatalf("NewPostgresStore returned error: %v", err)
+	}
+	defer store.Close()
+	if err := store.EnsureSchema(ctx); err != nil {
+		t.Fatalf("EnsureSchema returned error: %v", err)
+	}
+
+	suffix := time.Now().UTC().Format("20060102150405.000000000")
+	repo := "integration/contributors-" + suffix
+	first := integrationEvent("integration-contributor-1-"+suffix, "PushEvent", repo)
+	second := integrationEvent("integration-contributor-2-"+suffix, "IssuesEvent", repo)
+	third := integrationEvent("integration-contributor-3-"+suffix, "WatchEvent", repo)
+	first.ActorName = "alice"
+	second.ActorName = "alice"
+	third.ActorName = "bob"
+	for _, event := range []events.GitHubEvent{first, second, third} {
+		if err := store.InsertEvent(ctx, event); err != nil {
+			t.Fatalf("insert event %q: %v", event.ID, err)
+		}
+	}
+
+	contributors, err := store.TopContributors(ctx, repo, 10)
+	if err != nil {
+		t.Fatalf("TopContributors returned error: %v", err)
+	}
+	if len(contributors) < 2 {
+		t.Fatalf("len(contributors) = %d, want at least 2", len(contributors))
+	}
+	if contributors[0].ActorName != "alice" || contributors[0].Count != 2 {
+		t.Fatalf("top contributor = %+v, want alice count 2", contributors[0])
+	}
+	if contributors[1].ActorName != "bob" || contributors[1].Count != 1 {
+		t.Fatalf("second contributor = %+v, want bob count 1", contributors[1])
 	}
 }
