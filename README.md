@@ -145,7 +145,8 @@ volume grows.
 
 ## API
 
-The API is intentionally read-only in v1.
+The API is intentionally read-only in v1. The dashboard is served by the API
+service at `/dashboard`, and `/` redirects there.
 
 ```text
 GET /api/trending?hours=1&limit=10
@@ -159,6 +160,23 @@ GET /metrics
 
 There is no auth, rate limiting, or complex pagination in v1. The project is
 focused on the pipeline and analytics path first.
+
+Example local queries:
+
+```sh
+curl -i localhost:8090/health
+curl -i localhost:8090/metrics
+curl -i localhost:8090/dashboard
+curl -i 'localhost:8090/api/trending?hours=24&limit=5'
+curl -i 'localhost:8090/api/events/recent?repo=owner/repo&limit=10'
+curl -i 'localhost:8090/api/stats/breakdown?hours=24'
+curl -i 'localhost:8090/api/contributors/top?repo=owner/repo&limit=10'
+curl -i 'localhost:8090/api/stats/pipeline'
+```
+
+Bad query parameters return `400`, and database-backed endpoints return `503`
+when their backing store is unavailable. ClickHouse backs trending and event
+breakdown queries; PostgreSQL backs recent events and top contributors.
 
 ## Observability
 
