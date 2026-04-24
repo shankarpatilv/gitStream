@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func testDependencies() apiDependencies {
@@ -16,6 +17,8 @@ func testDependencies() apiDependencies {
 		trending:     &stubTrendingStore{},
 		recentEvents: &stubRecentEventsStore{},
 		breakdown:    &stubBreakdownStore{},
+		contributors: &stubContributorsStore{},
+		pipeline:     newPipelineStats(time.Now()),
 	}
 }
 
@@ -35,5 +38,21 @@ func TestMetricsRouteReturnsPrometheusOutput(t *testing.T) {
 	}
 	if !strings.Contains(contentType, "text/plain") {
 		t.Fatalf("expected prometheus content type, got %q", contentType)
+	}
+}
+
+func TestPipelineStatsRouteExists(t *testing.T) {
+	recorder := httptest.NewRecorder()
+
+	newRouter(testDependencies()).ServeHTTP(
+		recorder,
+		httptest.NewRequest(http.MethodGet, "/api/stats/pipeline", nil),
+	)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", recorder.Code)
+	}
+	if !strings.Contains(recorder.Body.String(), `"events_processed_total":`) {
+		t.Fatalf("expected pipeline response, got %s", recorder.Body.String())
 	}
 }
