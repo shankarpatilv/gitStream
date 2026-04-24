@@ -52,6 +52,17 @@ func TestRecentEventsRejectsBadLimit(t *testing.T) {
 	}
 }
 
+func TestRecentEventsRejectsLimitAboveMax(t *testing.T) {
+	recorder := httptest.NewRecorder()
+
+	request := httptest.NewRequest(http.MethodGet, "/api/events/recent?repo=a/b&limit=101", nil)
+	recentEventsHandler(&stubRecentEventsStore{}).ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", recorder.Code)
+	}
+}
+
 func TestRecentEventsReturnsUnavailableOnStoreError(t *testing.T) {
 	store := &stubRecentEventsStore{err: errors.New("down")}
 	recorder := httptest.NewRecorder()

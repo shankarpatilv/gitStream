@@ -54,6 +54,17 @@ func TestContributorsRejectsBadLimit(t *testing.T) {
 	}
 }
 
+func TestContributorsRejectsLimitAboveMax(t *testing.T) {
+	recorder := httptest.NewRecorder()
+
+	request := httptest.NewRequest(http.MethodGet, "/api/contributors/top?repo=a/b&limit=101", nil)
+	contributorsHandler(&stubContributorsStore{}).ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", recorder.Code)
+	}
+}
+
 func TestContributorsReturnsUnavailableOnStoreError(t *testing.T) {
 	store := &stubContributorsStore{err: errors.New("down")}
 	recorder := httptest.NewRecorder()
