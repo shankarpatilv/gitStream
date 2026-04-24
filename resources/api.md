@@ -338,6 +338,54 @@ curl -i 'localhost:8090/api/stats/pipeline'
 Expected result: each endpoint returns a stable response shape and no endpoint
 mutates data.
 
+## Live Dashboard
+
+The API service serves the dashboard from the same binary. No frontend build
+step is required.
+
+Open the dashboard:
+
+```text
+http://localhost:8090/dashboard
+```
+
+or check the route with curl:
+
+```sh
+curl -i localhost:8090/dashboard
+```
+
+Expected:
+
+```text
+HTTP/1.1 200 OK
+Content-Type: text/html; charset=utf-8
+```
+
+The root route redirects to the dashboard:
+
+```sh
+curl -i localhost:8090/
+```
+
+Expected:
+
+```text
+HTTP/1.1 302 Found
+Location: /dashboard
+```
+
+The page polls these live API endpoints every 5 seconds:
+
+```text
+/health
+/api/stats/pipeline
+/api/trending?hours=24&limit=10
+/api/stats/breakdown?hours=24
+/api/events/recent?repo=<selected>&limit=10
+/api/contributors/top?repo=<selected>&limit=10
+```
+
 ## Tests
 
 Run the normal suite:
