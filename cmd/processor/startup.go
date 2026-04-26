@@ -17,6 +17,7 @@ func logStartupConfig(cfg config) {
 		"kafka_topic", cfg.kafkaTopic,
 		"kafka_dlq_topic", cfg.dlqTopic,
 		"consumer_group", cfg.consumerGroup,
+		"metrics_port", cfg.metricsPort,
 		"worker_count", cfg.workerCount,
 		"postgres_host", cfg.postgresHost,
 		"postgres_port", cfg.postgresPort,
