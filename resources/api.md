@@ -81,6 +81,13 @@ HTTP/1.1 200 OK
 
 with Prometheus text-format metrics in the response body.
 
+Expected API-specific metric names include:
+
+```text
+gitstream_api_requests_total
+gitstream_api_request_duration_seconds
+```
+
 ## Trending Repositories
 
 Seed synthetic ClickHouse data intentionally when you want a predictable API

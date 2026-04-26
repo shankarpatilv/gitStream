@@ -24,6 +24,7 @@ func publishFailedJob(ctx context.Context, workerID int, next job, dlq dlqPublis
 	}
 
 	processorFailedEvents.Inc()
+	processorDLQDepth.Inc()
 	slog.Warn(
 		"published failed event to dlq",
 		"worker_id", workerID,
@@ -52,6 +53,7 @@ func publishMalformedMessage(
 	}
 
 	processorFailedEvents.Inc()
+	processorDLQDepth.Inc()
 	slog.Warn(
 		"published malformed message to dlq",
 		"topic", message.Topic,

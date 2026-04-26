@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"sync"
+	"time"
 )
 
 // startWorkers starts a bounded set of processors and reports when all exit.
@@ -41,6 +42,9 @@ func runWorker(
 	sink eventSink,
 	offsets *offsetTracker,
 ) {
+	processorActiveWorkers.Inc()
+	defer processorActiveWorkers.Dec()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -54,7 +58,9 @@ func runWorker(
 			process := func(ctx context.Context, workerID int, next job) error {
 				return processJob(ctx, workerID, next, sink)
 			}
+			start := time.Now()
 			handleJob(ctx, id, next, dlq, offsets, process, sleepWithContext)
+			processorProcessingDuration.Observe(time.Since(start).Seconds())
 		}
 	}
 }
@@ -71,7 +77,9 @@ func handleJob(
 ) {
 	err := processJobWithRetry(ctx, workerID, next, process, sleep)
 	if err == nil {
-		completeJobOffset(ctx, workerID, next, offsets)
+		if completeJobOffset(ctx, workerID, next, offsets) {
+			processorProcessedEvents.Inc()
+		}
 		return
 	}
 
@@ -91,7 +99,7 @@ func completeJobOffset(
 	workerID int,
 	next job,
 	offsets *offsetTracker,
-) {
+) bool {
 	if err := offsets.Complete(ctx, next.message); err != nil {
 		slog.Error(
 			"kafka offset commit failed",
@@ -102,5 +110,8 @@ func completeJobOffset(
 			"offset", next.message.Offset,
 			"error", err,
 		)
+		return false
 	}
+	processorConsumerLag.Dec()
+	return true
 }
