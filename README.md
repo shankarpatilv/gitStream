@@ -198,7 +198,8 @@ Core metrics:
 
 The Grafana dashboard focuses on the things that tell you whether the system is
 healthy: event throughput, consumer lag, DLQ depth, processing latency, and
-database write latency.
+database write latency. The importable dashboard JSON lives at
+`grafana/dashboard.json`.
 
 ## Tech Stack
 
@@ -229,6 +230,10 @@ internal/
   storage/      PostgreSQL and ClickHouse clients
 monitoring/
   prometheus.yml
+grafana/
+  dashboard.json
+resources/
+  observability.md
 docker-compose.yml
 .env.example
 README.md

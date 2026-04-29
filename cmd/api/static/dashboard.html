@@ -130,30 +130,6 @@
 
     .panel-body { padding: 14px 16px; }
 
-    .metric-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 10px;
-    }
-
-    .metric {
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      padding: 10px;
-      min-height: 72px;
-    }
-
-    .metric-value {
-      font-size: 24px;
-      font-weight: 750;
-      margin-top: 3px;
-    }
-
-    .metric-label {
-      color: var(--muted);
-      font-size: 12px;
-    }
-
     table {
       width: 100%;
       border-collapse: collapse;
@@ -270,7 +246,6 @@
       .shell { padding: 16px; }
       .topbar, .grid, .lower { grid-template-columns: 1fr; }
       .controls { justify-content: flex-start; }
-      .metric-grid { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 520px) {
@@ -314,34 +289,6 @@
         </div>
       </article>
 
-      <aside class="panel">
-        <div class="panel-header">
-          <div>
-            <h2>Pipeline Snapshot</h2>
-            <p id="lastRefresh" class="subtle">API-local counters reset when this service restarts</p>
-          </div>
-          <span id="uptimeBadge" class="badge">0s uptime</span>
-        </div>
-        <div class="panel-body">
-          <div class="metric-grid">
-            <div class="metric">
-              <div class="metric-label">Ingested</div>
-              <div id="eventsIngested" class="metric-value">0</div>
-            </div>
-            <div class="metric">
-              <div class="metric-label">Processed</div>
-              <div id="eventsProcessed" class="metric-value">0</div>
-            </div>
-            <div class="metric">
-              <div class="metric-label">Failed</div>
-              <div id="eventsFailed" class="metric-value">0</div>
-            </div>
-          </div>
-        </div>
-      </aside>
-    </section>
-
-    <section class="grid">
       <article class="panel">
         <div class="panel-header">
           <div>
@@ -407,7 +354,6 @@
 
     const api = {
       health: "/health",
-      pipeline: "/api/stats/pipeline",
       trending: "/api/trending?hours=24&limit=10",
       breakdown: "/api/stats/breakdown?hours=24",
       recent: (repo) => `/api/events/recent?repo=${encodeURIComponent(repo)}&limit=10`,
@@ -426,14 +372,6 @@
 
     function number(value) {
       return Number(value || 0).toLocaleString();
-    }
-
-    function seconds(value) {
-      const total = Number(value || 0);
-      const minutes = Math.floor(total / 60);
-      const secs = total % 60;
-      if (minutes === 0) return `${secs}s uptime`;
-      return `${minutes}m ${secs}s uptime`;
     }
 
     async function getJSON(url) {
@@ -498,13 +436,6 @@
         wrap.append(label, track, count);
         target.appendChild(wrap);
       }
-    }
-
-    function renderPipeline(data) {
-      text("eventsIngested", number(data.events_ingested_total));
-      text("eventsProcessed", number(data.events_processed_total));
-      text("eventsFailed", number(data.events_failed_total));
-      text("uptimeBadge", seconds(data.uptime_seconds));
     }
 
     function renderSelectedRepo() {
@@ -599,7 +530,6 @@
       }
 
       await Promise.all([
-        getJSON(api.pipeline).then(renderPipeline).catch((err) => state.errors.push(err.message)),
         getJSON(api.trending).then(renderTrending).catch((err) => state.errors.push(err.message)),
         getJSON(api.breakdown).then(renderBreakdown).catch((err) => state.errors.push(err.message)),
       ]);
@@ -612,7 +542,6 @@
         ]);
       }
 
-      text("lastRefresh", `Last refresh ${new Date().toLocaleTimeString()}`);
       setStatus("refreshStatus", state.errors.length ? "error" : "ok", state.errors.length ? "Refresh issues" : "Live");
       renderErrors();
     }
