@@ -191,7 +191,7 @@ grafana/dashboard.json
 ```
 
 Expected result: Grafana imports a dashboard named `GitStream Pipeline` with
-six panels:
+eight panels:
 
 ```text
 Event Throughput
@@ -200,10 +200,15 @@ DLQ Depth
 Errors And Retries
 Pipeline Latency P95
 Storage And API Latency P95
+Processed Events Total
+Processed Events Last 15m Estimate
 ```
 
 The panels render live data when the local pipeline is running and Prometheus
-has scraped the service `/metrics` endpoints.
+has scraped the service `/metrics` endpoints. The total-events panel shows the
+exact current processor counter. The 15-minute estimate uses Prometheus range
+math, so it can be slightly above or below the exact count around scrape
+boundaries.
 
 ## Dashboard Metrics
 
