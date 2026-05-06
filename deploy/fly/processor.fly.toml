@@ -1,0 +1,25 @@
+app = "gitstream-processor-demo"
+primary_region = "iad"
+kill_signal = "SIGINT"
+kill_timeout = "30s"
+
+[build]
+  dockerfile = "../../cmd/processor/Dockerfile"
+
+[env]
+  KAFKA_TOPIC = "github-events"
+  KAFKA_DLQ_TOPIC = "github-events-dlq"
+  KAFKA_CONSUMER_GROUP = "gitstream-processors"
+  PROCESSOR_METRICS_PORT = "8091"
+  WORKER_COUNT = "10"
+  POSTGRES_PORT = "5432"
+  POSTGRES_DB = "gitstream"
+  POSTGRES_USER = "gitstream"
+  CLICKHOUSE_NATIVE_PORT = "9000"
+  CLICKHOUSE_DB = "gitstream"
+  CLICKHOUSE_USER = "gitstream"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "512mb"
