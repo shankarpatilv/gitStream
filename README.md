@@ -271,6 +271,7 @@ grafana/
   dashboard.json
 resources/
   benchmarks.md
+  fly.md
   observability.md
 docker-compose.yml
 .env.example
@@ -338,9 +339,18 @@ Key optimizations:
 For production deployment on Fly.io:
 
 ```sh
-# Deploy a service (requires flyctl and Fly.io setup)
-flyctl deploy --dockerfile cmd/ingest/Dockerfile
+# Temporary demo deployment (requires flyctl, Fly.io billing, and cloud Kafka)
+cp deploy/fly/demo.env.example /tmp/gitstream-fly-demo.env
+$EDITOR /tmp/gitstream-fly-demo.env
+source /tmp/gitstream-fly-demo.env
+./scripts/fly-demo-deploy.sh
 ```
+
+The Fly.io demo runs five apps: ingest, processor, API, Postgres, and
+ClickHouse. Postgres uses a 1GB Fly Volume and ClickHouse uses a 5GB Fly
+Volume. Kafka is expected to be an external cloud broker with SASL/TLS
+credentials. The full deploy, verification, and teardown workflow lives in
+`resources/fly.md`.
 
 ## Configuration
 
