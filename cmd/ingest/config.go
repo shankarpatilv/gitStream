@@ -16,6 +16,19 @@ func env(key, fallback string) string {
 	return value
 }
 
+func envList(key, fallback string) []string {
+	value := env(key, fallback)
+	parts := strings.Split(value, ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			values = append(values, part)
+		}
+	}
+	return values
+}
+
 func loadDotEnv(path string) {
 	file, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {

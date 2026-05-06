@@ -17,9 +17,10 @@ func runGitHubPoller(
 	client *http.Client,
 	token string,
 	deduper *events.Deduper,
+	publisher eventPublisher,
 	interval time.Duration,
 ) {
-	pollAndLogGitHubEvents(ctx, client, token, deduper)
+	pollAndPublishGitHubEvents(ctx, client, token, deduper, publisher)
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -30,17 +31,18 @@ func runGitHubPoller(
 			slog.Info("github poller stopped", "error", ctx.Err())
 			return
 		case <-ticker.C:
-			pollAndLogGitHubEvents(ctx, client, token, deduper)
+			pollAndPublishGitHubEvents(ctx, client, token, deduper, publisher)
 		}
 	}
 }
 
-// pollAndLogGitHubEvents handles one GitHub API poll cycle.
-func pollAndLogGitHubEvents(
+// pollAndPublishGitHubEvents handles one GitHub API poll cycle.
+func pollAndPublishGitHubEvents(
 	ctx context.Context,
 	client *http.Client,
 	token string,
 	deduper *events.Deduper,
+	publisher eventPublisher,
 ) {
 	rawEvents, err := fetchGitHubEvents(ctx, client, token)
 	if err != nil {
@@ -49,6 +51,6 @@ func pollAndLogGitHubEvents(
 	}
 
 	for _, rawEvent := range rawEvents {
-		logAcceptedGitHubEvent(rawEvent, deduper)
+		handleAcceptedGitHubEvent(ctx, rawEvent, deduper, publisher)
 	}
 }
