@@ -48,6 +48,15 @@ func (p *Producer) Publish(ctx context.Context, event events.GitHubEvent) error 
 		Key:   []byte(event.RepoName),
 		Value: event.Payload,
 	}
+	return p.PublishRaw(ctx, message.Key, message.Value)
+}
+
+// PublishRaw writes a message while preserving the caller-provided key/value.
+func (p *Producer) PublishRaw(ctx context.Context, key, value []byte) error {
+	message := kafkago.Message{
+		Key:   append([]byte(nil), key...),
+		Value: append([]byte(nil), value...),
+	}
 	if err := p.writer.WriteMessages(ctx, message); err != nil {
 		return fmt.Errorf("write kafka message: %w", err)
 	}
