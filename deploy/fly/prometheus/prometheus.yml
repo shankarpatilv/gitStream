@@ -1,0 +1,23 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - localhost:9090
+  - job_name: gitstream-ingest
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - ${INGEST_METRICS_TARGET}
+  - job_name: gitstream-processor
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - ${PROCESSOR_METRICS_TARGET}
+  - job_name: gitstream-api
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - ${API_METRICS_TARGET}
