@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/vivekspatil/gitstream/internal/events"
 	"github.com/vivekspatil/gitstream/internal/kafka"
 )
 
@@ -26,18 +27,40 @@ func runConsumer(ctx context.Context, consumer messageConsumer) {
 			continue
 		}
 
-		logConsumedMessage(message)
+		event, err := decodeMessageEvent(message)
+		if err != nil {
+			logMalformedMessage(message, err)
+			continue
+		}
+
+		logDecodedMessage(message, event)
 	}
 }
 
-// logConsumedMessage records Kafka metadata before JSON decoding exists.
-func logConsumedMessage(message kafka.Message) {
-	slog.Info(
-		"consumed kafka message",
+// logMalformedMessage records enough Kafka context to debug bad payloads.
+func logMalformedMessage(message kafka.Message, err error) {
+	slog.Warn(
+		"skipping malformed kafka message",
 		"topic", message.Topic,
 		"partition", message.Partition,
 		"offset", message.Offset,
 		"key", string(message.Key),
+		"error", err,
+	)
+}
+
+// logDecodedMessage records Kafka metadata and normalized event fields.
+func logDecodedMessage(message kafka.Message, event events.GitHubEvent) {
+	slog.Info(
+		"decoded kafka message",
+		"topic", message.Topic,
+		"partition", message.Partition,
+		"offset", message.Offset,
+		"key", string(message.Key),
+		"event_id", event.ID,
+		"event_type", event.Type,
+		"repo", event.RepoName,
+		"actor", event.ActorName,
 	)
 }
 
