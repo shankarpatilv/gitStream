@@ -2,12 +2,10 @@ package kafka
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"time"
 
 	kafkago "github.com/segmentio/kafka-go"
-	"github.com/segmentio/kafka-go/sasl/plain"
 	"github.com/vivekspatil/gitstream/internal/events"
 )
 
@@ -38,7 +36,7 @@ func NewProducer(config ProducerConfig) (*Producer, error) {
 		RequiredAcks:           kafkago.RequireOne,
 		BatchTimeout:           100 * time.Millisecond,
 		AllowAutoTopicCreation: true,
-		Transport:              newTransport(config),
+		Transport:              newTransport(config.Username, config.Password),
 	}
 
 	return &Producer{writer: writer}, nil
@@ -58,20 +56,4 @@ func (p *Producer) Publish(ctx context.Context, event events.GitHubEvent) error 
 
 func (p *Producer) Close() error {
 	return p.writer.Close()
-}
-
-func newTransport(config ProducerConfig) kafkago.RoundTripper {
-	if config.Username == "" || config.Password == "" {
-		return nil
-	}
-
-	return &kafkago.Transport{
-		TLS: &tls.Config{
-			MinVersion: tls.VersionTLS12,
-		},
-		SASL: plain.Mechanism{
-			Username: config.Username,
-			Password: config.Password,
-		},
-	}
 }
