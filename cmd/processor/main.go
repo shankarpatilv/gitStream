@@ -11,7 +11,10 @@ import (
 )
 
 func main() {
-	const service = "processor"
+	const (
+		service     = "processor"
+		jobCapacity = 100
+	)
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
@@ -51,7 +54,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	runConsumer(ctx, consumer)
+	jobs := make(chan job, jobCapacity)
+	startWorkers(ctx, cfg.workerCount, jobs)
+
+	runConsumer(ctx, consumer, jobs)
 	closeConsumer(consumer)
 	slog.Info("service stopped", "service", service)
 }
