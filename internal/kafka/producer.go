@@ -36,7 +36,7 @@ func NewProducer(config ProducerConfig) (*Producer, error) {
 		RequiredAcks:           kafkago.RequireOne,
 		BatchTimeout:           100 * time.Millisecond,
 		AllowAutoTopicCreation: true,
-		Transport:              newTransport(config.Username, config.Password),
+		Transport:              newTransport(config.Brokers, config.Username, config.Password),
 	}
 
 	return &Producer{writer: writer}, nil
