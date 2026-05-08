@@ -17,6 +17,8 @@ type apiDependencies struct {
 
 func newRouter(deps apiDependencies) http.Handler {
 	router := chi.NewRouter()
+	router.Get("/", dashboardHandler())
+	router.Get("/dashboard", dashboardHandler())
 	router.Get("/health", healthHandler(deps.health))
 	router.Handle("/metrics", metricsHandler())
 	router.Get("/api/trending", trendingHandler(deps.trending))
