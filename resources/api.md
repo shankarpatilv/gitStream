@@ -1,0 +1,154 @@
+# API Service
+
+This guide verifies the Phase 3 query API locally.
+
+The API service:
+
+```text
+Postgres raw events
+ClickHouse analytics rows
+  -> API service on port 8090
+  -> health, metrics, and read-only query endpoints
+```
+
+## Requirements
+
+- Go 1.25+
+- Docker Desktop
+- Local Postgres from `docker-compose.yml`
+- Local ClickHouse from `docker-compose.yml`
+
+## Start Dependencies
+
+```sh
+docker compose up -d postgres clickhouse
+docker compose ps postgres clickhouse
+```
+
+Expected status:
+
+```text
+Up ... (healthy)
+```
+
+If Compose Postgres is mapped to local port `15432`, pass
+`POSTGRES_PORT=15432` when running the API.
+
+## Run API
+
+```sh
+POSTGRES_PORT=15432 go run ./cmd/api
+```
+
+Expected startup log:
+
+```json
+{"msg":"starting service","service":"api","port":"8090"}
+```
+
+Stop the service with `ctrl+c`.
+
+## Health
+
+```sh
+curl -i localhost:8090/health
+```
+
+Expected with both databases reachable:
+
+```text
+HTTP/1.1 200 OK
+{"status":"ok","postgres":"ok","clickhouse":"ok"}
+```
+
+Expected when either required database is unavailable:
+
+```text
+HTTP/1.1 503 Service Unavailable
+```
+
+## Metrics
+
+```sh
+curl -i localhost:8090/metrics
+```
+
+Expected:
+
+```text
+HTTP/1.1 200 OK
+```
+
+with Prometheus text-format metrics in the response body.
+
+## Trending Repositories
+
+Query ClickHouse-backed trending repositories:
+
+```sh
+curl -i 'localhost:8090/api/trending?hours=24&limit=5'
+```
+
+Expected:
+
+```text
+HTTP/1.1 200 OK
+```
+
+with JSON shaped like:
+
+```json
+{
+  "hours": 24,
+  "limit": 5,
+  "repos": [
+    {
+      "repo_name": "owner/repo",
+      "count": 10
+    }
+  ]
+}
+```
+
+Bad query params should return `400`:
+
+```sh
+curl -i 'localhost:8090/api/trending?hours=bad&limit=5'
+```
+
+Expected:
+
+```text
+HTTP/1.1 400 Bad Request
+{"error":"invalid hours"}
+```
+
+Measure endpoint latency:
+
+```sh
+curl -s -o /tmp/gitstream-trending.json \
+  -w '%{time_total}\n' \
+  'localhost:8090/api/trending?hours=24&limit=5'
+```
+
+The Phase 3 local check returned:
+
+```text
+0.014763
+```
+
+## Tests
+
+Run the normal suite:
+
+```sh
+go test ./...
+```
+
+Run the ClickHouse integration test for trending queries:
+
+```sh
+set -a; source .env; set +a; \
+GITSTREAM_INTEGRATION=1 \
+go test ./internal/storage -run ClickHouseStoreIntegrationTrendingRepos -count=1 -v
+```
