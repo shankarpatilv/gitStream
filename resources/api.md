@@ -202,6 +202,41 @@ curl -i 'localhost:8090/api/events/recent'
 curl -i 'localhost:8090/api/events/recent?repo=codex/recent&limit=0'
 ```
 
+## Event Breakdown
+
+Query ClickHouse-backed event-type counts:
+
+```sh
+curl -i 'localhost:8090/api/stats/breakdown?hours=24'
+```
+
+Expected:
+
+```text
+HTTP/1.1 200 OK
+```
+
+with JSON shaped like:
+
+```json
+{
+  "hours": 24,
+  "breakdown": [
+    {
+      "event_type": "PushEvent",
+      "count": 100
+    }
+  ]
+}
+```
+
+Bad `hours` values should return `400`:
+
+```sh
+curl -i 'localhost:8090/api/stats/breakdown?hours=0'
+curl -i 'localhost:8090/api/stats/breakdown?hours=bad'
+```
+
 ## Tests
 
 Run the normal suite:
@@ -216,6 +251,14 @@ Run the ClickHouse integration test for trending queries:
 set -a; source .env; set +a; \
 GITSTREAM_INTEGRATION=1 \
 go test ./internal/storage -run ClickHouseStoreIntegrationTrendingRepos -count=1 -v
+```
+
+Run the ClickHouse integration test for event breakdown queries:
+
+```sh
+set -a; source .env; set +a; \
+GITSTREAM_INTEGRATION=1 \
+go test ./internal/storage -run ClickHouseStoreIntegrationEventBreakdown -count=1 -v
 ```
 
 Run the seed command tests:

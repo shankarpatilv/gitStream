@@ -25,6 +25,7 @@ func main() {
 			health:       newHealthChecker(cfg),
 			trending:     clickHouseTrendingStore{cfg: cfg},
 			recentEvents: postgresRecentEventsStore{cfg: cfg},
+			breakdown:    clickHouseBreakdownStore{cfg: cfg},
 		}),
 	}
 

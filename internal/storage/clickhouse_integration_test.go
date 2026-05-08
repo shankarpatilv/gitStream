@@ -105,3 +105,47 @@ func findTrendingCount(repos []TrendingRepo, name string) (uint64, bool) {
 	}
 	return 0, false
 }
+
+func TestClickHouseStoreIntegrationEventBreakdown(t *testing.T) {
+	requireIntegration(t)
+	ctx := integrationContext(t)
+
+	store, err := NewClickHouseStore(ctx, integrationClickHouseConfig())
+	if err != nil {
+		t.Fatalf("NewClickHouseStore returned error: %v", err)
+	}
+	defer store.Close()
+	if err := store.EnsureSchema(ctx); err != nil {
+		t.Fatalf("EnsureSchema returned error: %v", err)
+	}
+
+	suffix := time.Now().UTC().Format("20060102150405.000000000")
+	repo := "integration/breakdown-" + suffix
+	batch := []events.GitHubEvent{
+		integrationEvent("integration-breakdown-1-"+suffix, "PushEvent", repo),
+		integrationEvent("integration-breakdown-2-"+suffix, "PushEvent", repo),
+		integrationEvent("integration-breakdown-3-"+suffix, "IssuesEvent", repo),
+	}
+	if err := store.InsertAnalyticsBatch(ctx, batch); err != nil {
+		t.Fatalf("InsertAnalyticsBatch returned error: %v", err)
+	}
+
+	breakdown, err := store.EventBreakdown(ctx, 24)
+	if err != nil {
+		t.Fatalf("EventBreakdown returned error: %v", err)
+	}
+	pushCount := findBreakdownCount(breakdown, "PushEvent")
+	issuesCount := findBreakdownCount(breakdown, "IssuesEvent")
+	if pushCount < 2 || issuesCount < 1 {
+		t.Fatalf("counts = PushEvent:%d IssuesEvent:%d", pushCount, issuesCount)
+	}
+}
+
+func findBreakdownCount(items []EventBreakdown, eventType string) uint64 {
+	for _, item := range items {
+		if item.EventType == eventType {
+			return item.Count
+		}
+	}
+	return 0
+}
