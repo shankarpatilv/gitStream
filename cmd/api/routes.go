@@ -11,6 +11,7 @@ type apiDependencies struct {
 	trending     trendingStore
 	recentEvents recentEventsStore
 	breakdown    breakdownStore
+	contributors contributorsStore
 }
 
 func newRouter(deps apiDependencies) http.Handler {
@@ -20,5 +21,6 @@ func newRouter(deps apiDependencies) http.Handler {
 	router.Get("/api/trending", trendingHandler(deps.trending))
 	router.Get("/api/events/recent", recentEventsHandler(deps.recentEvents))
 	router.Get("/api/stats/breakdown", breakdownHandler(deps.breakdown))
+	router.Get("/api/contributors/top", contributorsHandler(deps.contributors))
 	return router
 }
