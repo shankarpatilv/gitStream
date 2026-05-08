@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GitStream Dashboard</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --text: #17202a;
+      --muted: #667085;
+      --line: #d8dee8;
+      --accent: #176b87;
+      --accent-2: #2f9b8f;
+      --danger: #b42318;
+      --ok: #067647;
+      --warn: #b54708;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }
+
+    button, input { font: inherit; }
+
+    .shell {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 20px;
+      align-items: end;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1, h2, p { margin: 0; }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .subtle {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 4px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .status {
+      min-height: 34px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--muted);
+      flex: 0 0 auto;
+    }
+
+    .ok .dot { background: var(--ok); }
+    .warn .dot { background: var(--warn); }
+    .error .dot { background: var(--danger); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(330px, 1.2fr) minmax(320px, 0.8fr);
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .lower {
+      display: grid;
+      grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr);
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      min-width: 0;
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .panel-body { padding: 14px 16px; }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px;
+      min-height: 72px;
+    }
+
+    .metric-value {
+      font-size: 24px;
+      font-weight: 750;
+      margin-top: 3px;
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    th, td {
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: middle;
+      font-size: 13px;
+    }
+
+    th {
+      color: var(--muted);
+      font-weight: 650;
+      font-size: 12px;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+
+    .repo-button {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      color: var(--accent);
+      cursor: pointer;
+      padding: 0;
+      text-align: left;
+      overflow-wrap: anywhere;
+    }
+
+    .repo-button:hover { text-decoration: underline; }
+
+    .count { text-align: right; font-variant-numeric: tabular-nums; }
+
+    .bars {
+      display: grid;
+      gap: 12px;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 126px minmax(0, 1fr) 68px;
+      gap: 10px;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .bar-track {
+      height: 10px;
+      background: #edf1f5;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--accent-2);
+    }
+
+    .feed {
+      display: grid;
+      gap: 10px;
+    }
+
+    .event {
+      display: grid;
+      gap: 2px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 10px;
+    }
+
+    .event:last-child {
+      border-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .event-title {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      font-size: 13px;
+      overflow-wrap: anywhere;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      min-height: 24px;
+      padding: 2px 8px;
+      color: var(--muted);
+      background: #fbfcfd;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .empty, .error-box {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .error-box { color: var(--danger); }
+
+    @media (max-width: 900px) {
+      .shell { padding: 16px; }
+      .topbar, .grid, .lower { grid-template-columns: 1fr; }
+      .controls { justify-content: flex-start; }
+      .metric-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 520px) {
+      h1 { font-size: 23px; }
+      .bar-row { grid-template-columns: 1fr; gap: 5px; }
+      th, td { padding: 9px 4px; }
+      .panel-header { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <h1>GitStream</h1>
+        <p class="subtle">Live GitHub activity from the ingest, Kafka, Postgres, ClickHouse, and API pipeline.</p>
+      </div>
+      <div class="controls">
+        <div id="healthStatus" class="status warn"><span class="dot"></span><span>Checking health</span></div>
+        <div id="refreshStatus" class="status"><span class="dot"></span><span>Waiting for refresh</span></div>
+      </div>
+    </header>
+
+    <section class="grid">
+      <article class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Trending Repositories</h2>
+            <p class="subtle">Last 24 hours, refreshed every 5 seconds</p>
+          </div>
+          <span id="trendingMeta" class="badge">0 repos</span>
+        </div>
+        <div class="panel-body">
+          <table>
+            <thead>
+              <tr><th>Repository</th><th class="count">Events</th></tr>
+            </thead>
+            <tbody id="trendingRows"></tbody>
+          </table>
+          <div id="trendingEmpty" class="empty">Loading trending repositories.</div>
+        </div>
+      </article>
+
+      <aside class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Pipeline Snapshot</h2>
+            <p id="lastRefresh" class="subtle">API-local counters reset when this service restarts</p>
+          </div>
+          <span id="uptimeBadge" class="badge">0s uptime</span>
+        </div>
+        <div class="panel-body">
+          <div class="metric-grid">
+            <div class="metric">
+              <div class="metric-label">Ingested</div>
+              <div id="eventsIngested" class="metric-value">0</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Processed</div>
+              <div id="eventsProcessed" class="metric-value">0</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Failed</div>
+              <div id="eventsFailed" class="metric-value">0</div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="grid">
+      <article class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Event Type Breakdown</h2>
+            <p class="subtle">ClickHouse grouped counts for the last 24 hours</p>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div id="breakdownBars" class="bars"></div>
+          <div id="breakdownEmpty" class="empty">Loading event breakdown.</div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Selected Repository</h2>
+            <p id="selectedRepo" class="subtle">Waiting for trending data</p>
+          </div>
+          <span id="repoBadge" class="badge">Auto-selected</span>
+        </div>
+        <div class="panel-body">
+          <div id="contributorsRows" class="bars"></div>
+          <div id="contributorsEmpty" class="empty">No Postgres contributor rows for this repository yet.</div>
+        </div>
+      </article>
+    </section>
+
+    <section class="lower">
+      <article class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Live Event Feed</h2>
+            <p class="subtle">Recent Postgres rows for the selected repository</p>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div id="eventFeed" class="feed"></div>
+          <div id="feedEmpty" class="empty">No Postgres recent events for this repository yet.</div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Dashboard State</h2>
+            <p class="subtle">Endpoint health and refresh errors</p>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div id="errors" class="empty">No refresh errors.</div>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    const state = {
+      selectedRepo: "",
+      errors: [],
+      refreshTimer: null,
+    };
+
+    const api = {
+      health: "/health",
+      pipeline: "/api/stats/pipeline",
+      trending: "/api/trending?hours=24&limit=10",
+      breakdown: "/api/stats/breakdown?hours=24",
+      recent: (repo) => `/api/events/recent?repo=${encodeURIComponent(repo)}&limit=10`,
+      contributors: (repo) => `/api/contributors/top?repo=${encodeURIComponent(repo)}&limit=10`,
+    };
+
+    function text(id, value) {
+      document.getElementById(id).textContent = value;
+    }
+
+    function setStatus(id, kind, label) {
+      const el = document.getElementById(id);
+      el.className = `status ${kind}`;
+      el.querySelector("span:last-child").textContent = label;
+    }
+
+    function number(value) {
+      return Number(value || 0).toLocaleString();
+    }
+
+    function seconds(value) {
+      const total = Number(value || 0);
+      const minutes = Math.floor(total / 60);
+      const secs = total % 60;
+      if (minutes === 0) return `${secs}s uptime`;
+      return `${minutes}m ${secs}s uptime`;
+    }
+
+    async function getJSON(url) {
+      const response = await fetch(url, { headers: { "Accept": "application/json" } });
+      if (!response.ok) throw new Error(`${url} returned ${response.status}`);
+      return response.json();
+    }
+
+    function renderTrending(data) {
+      const rows = document.getElementById("trendingRows");
+      const empty = document.getElementById("trendingEmpty");
+      rows.innerHTML = "";
+
+      const repos = data.repos || [];
+      text("trendingMeta", `${repos.length} repos`);
+      empty.style.display = repos.length ? "none" : "flex";
+
+      if (!state.selectedRepo && repos.length) {
+        state.selectedRepo = repos[0].repo_name;
+      }
+
+      for (const repo of repos) {
+        const tr = document.createElement("tr");
+        const repoCell = document.createElement("td");
+        const countCell = document.createElement("td");
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "repo-button";
+        button.textContent = repo.repo_name;
+        button.addEventListener("click", () => selectRepo(repo.repo_name));
+        repoCell.appendChild(button);
+        countCell.className = "count";
+        countCell.textContent = number(repo.count);
+        tr.append(repoCell, countCell);
+        rows.appendChild(tr);
+      }
+    }
+
+    function renderBreakdown(data) {
+      const target = document.getElementById("breakdownBars");
+      const empty = document.getElementById("breakdownEmpty");
+      target.innerHTML = "";
+
+      const rows = data.breakdown || [];
+      const max = Math.max(...rows.map((row) => row.count), 1);
+      empty.style.display = rows.length ? "none" : "flex";
+
+      for (const row of rows) {
+        const wrap = document.createElement("div");
+        wrap.className = "bar-row";
+        const label = document.createElement("span");
+        const track = document.createElement("span");
+        const fill = document.createElement("span");
+        const count = document.createElement("span");
+        label.textContent = row.event_type;
+        track.className = "bar-track";
+        fill.className = "bar-fill";
+        fill.style.width = `${(row.count / max) * 100}%`;
+        count.className = "count";
+        count.textContent = number(row.count);
+        track.appendChild(fill);
+        wrap.append(label, track, count);
+        target.appendChild(wrap);
+      }
+    }
+
+    function renderPipeline(data) {
+      text("eventsIngested", number(data.events_ingested_total));
+      text("eventsProcessed", number(data.events_processed_total));
+      text("eventsFailed", number(data.events_failed_total));
+      text("uptimeBadge", seconds(data.uptime_seconds));
+    }
+
+    function renderSelectedRepo() {
+      text("selectedRepo", state.selectedRepo || "Waiting for trending data");
+      text("repoBadge", state.selectedRepo ? "Selected" : "Auto-selected");
+    }
+
+    function renderContributors(data) {
+      const target = document.getElementById("contributorsRows");
+      const empty = document.getElementById("contributorsEmpty");
+      target.innerHTML = "";
+
+      const contributors = data.contributors || [];
+      const max = Math.max(...contributors.map((row) => row.count), 1);
+      empty.textContent = state.selectedRepo
+        ? "No Postgres contributor rows for this repository yet. ClickHouse seed data only populates trending and breakdown panels."
+        : "Select a repository to view contributors.";
+      empty.style.display = contributors.length ? "none" : "flex";
+
+      for (const row of contributors) {
+        const wrap = document.createElement("div");
+        wrap.className = "bar-row";
+        const label = document.createElement("span");
+        const track = document.createElement("span");
+        const fill = document.createElement("span");
+        const count = document.createElement("span");
+        label.textContent = row.actor_name;
+        track.className = "bar-track";
+        fill.className = "bar-fill";
+        fill.style.width = `${(row.count / max) * 100}%`;
+        count.className = "count";
+        count.textContent = number(row.count);
+        track.appendChild(fill);
+        wrap.append(label, track, count);
+        target.appendChild(wrap);
+      }
+    }
+
+    function renderFeed(data) {
+      const target = document.getElementById("eventFeed");
+      const empty = document.getElementById("feedEmpty");
+      target.innerHTML = "";
+
+      const events = data.events || [];
+      empty.textContent = state.selectedRepo
+        ? "No Postgres recent events for this repository yet. Live processor data will appear here after raw events are written."
+        : "Select a repository to view recent events.";
+      empty.style.display = events.length ? "none" : "flex";
+
+      for (const event of events) {
+        const item = document.createElement("div");
+        item.className = "event";
+        const created = event.created_at ? new Date(event.created_at).toLocaleString() : "unknown time";
+        const title = document.createElement("div");
+        const actor = document.createElement("strong");
+        const badge = document.createElement("span");
+        const meta = document.createElement("p");
+        title.className = "event-title";
+        actor.textContent = event.actor_name;
+        badge.className = "badge";
+        badge.textContent = event.type;
+        meta.className = "subtle";
+        meta.textContent = `${created} · ${event.id}`;
+        title.append(actor, badge);
+        item.append(title, meta);
+        target.appendChild(item);
+      }
+    }
+
+    function renderErrors() {
+      const target = document.getElementById("errors");
+      if (!state.errors.length) {
+        target.className = "empty";
+        target.textContent = "No refresh errors.";
+        return;
+      }
+      target.className = "error-box";
+      target.textContent = state.errors.join(" | ");
+    }
+
+    async function refresh() {
+      state.errors = [];
+      setStatus("refreshStatus", "warn", "Refreshing");
+
+      try {
+        const health = await getJSON(api.health);
+        const healthy = health.status === "ok";
+        setStatus("healthStatus", healthy ? "ok" : "error", healthy ? "Healthy" : "Degraded");
+      } catch (err) {
+        state.errors.push(err.message);
+        setStatus("healthStatus", "error", "Health unavailable");
+      }
+
+      await Promise.all([
+        getJSON(api.pipeline).then(renderPipeline).catch((err) => state.errors.push(err.message)),
+        getJSON(api.trending).then(renderTrending).catch((err) => state.errors.push(err.message)),
+        getJSON(api.breakdown).then(renderBreakdown).catch((err) => state.errors.push(err.message)),
+      ]);
+
+      renderSelectedRepo();
+      if (state.selectedRepo) {
+        await Promise.all([
+          getJSON(api.contributors(state.selectedRepo)).then(renderContributors).catch((err) => state.errors.push(err.message)),
+          getJSON(api.recent(state.selectedRepo)).then(renderFeed).catch((err) => state.errors.push(err.message)),
+        ]);
+      }
+
+      text("lastRefresh", `Last refresh ${new Date().toLocaleTimeString()}`);
+      setStatus("refreshStatus", state.errors.length ? "error" : "ok", state.errors.length ? "Refresh issues" : "Live");
+      renderErrors();
+    }
+
+    function selectRepo(repo) {
+      state.selectedRepo = repo;
+      renderSelectedRepo();
+      refresh();
+    }
+
+    refresh();
+    state.refreshTimer = window.setInterval(refresh, 5000);
+  </script>
+</body>
+</html>
