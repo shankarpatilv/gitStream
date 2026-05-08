@@ -36,6 +36,7 @@ func handleAcceptedGitHubEvent(
 	)
 
 	if err := publisher.Publish(ctx, event); err != nil {
+		ingestErrors.WithLabelValues("kafka_publish").Inc()
 		slog.Error(
 			"kafka publish failed",
 			"repo", event.RepoName,
@@ -43,5 +44,7 @@ func handleAcceptedGitHubEvent(
 			"actor", event.ActorName,
 			"error", err,
 		)
+		return
 	}
+	ingestEventsIngested.Inc()
 }

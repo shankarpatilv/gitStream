@@ -18,6 +18,8 @@ Kafka topic github-events
 
 The processor commits Kafka offsets only after Postgres and ClickHouse both
 succeed, or after an exhausted failure is successfully published to the DLQ.
+The processor also exposes Prometheus metrics on
+`PROCESSOR_METRICS_PORT`, default `8091`.
 
 ## Requirements
 
@@ -39,6 +41,39 @@ Expected status:
 ```text
 Up ... (healthy)
 ```
+
+## Check Processor Metrics
+
+Run this while the processor is running:
+
+```sh
+curl -i localhost:8091/metrics
+```
+
+Expected:
+
+```text
+HTTP/1.1 200 OK
+```
+
+with GitStream metric names including:
+
+```text
+gitstream_events_processed_total
+gitstream_events_failed_total
+gitstream_consumer_lag
+gitstream_processing_duration_seconds
+gitstream_postgres_write_duration_seconds
+gitstream_clickhouse_write_duration_seconds
+gitstream_dlq_depth
+gitstream_active_workers
+gitstream_processor_retries_total
+```
+
+In this v1 implementation, `gitstream_consumer_lag` is the number of fetched
+Kafka messages not yet durably completed by this processor process, and
+`gitstream_dlq_depth` is the number of DLQ messages this processor process has
+published.
 
 ## Verify Postgres
 

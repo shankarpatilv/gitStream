@@ -5,6 +5,7 @@ type config struct {
 	kafkaTopic     string
 	dlqTopic       string
 	consumerGroup  string
+	metricsPort    string
 	kafkaUsername  string
 	kafkaPassword  string
 	workerCount    int
