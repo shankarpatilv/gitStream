@@ -186,7 +186,7 @@ database write latency.
 
 | Layer | Technology |
 | --- | --- |
-| Language | Go 1.22+ |
+| Language | Go 1.25+ |
 | HTTP router | chi v5 |
 | Message queue | Kafka |
 | Kafka client | segmentio/kafka-go |
