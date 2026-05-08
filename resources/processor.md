@@ -319,6 +319,163 @@ The malformed payload is not written to Postgres or ClickHouse. It is preserved
 in `github-events-dlq`, and its source offset is committed only after DLQ
 publish succeeds.
 
+## Week 2 Storage Integration Tests
+
+The storage integration tests are skipped by default. Run them only when local
+Postgres and ClickHouse are available.
+
+Load ignored local credentials from `.env` and point Postgres at the Compose
+port used on this machine:
+
+```sh
+set -a
+source .env
+set +a
+
+GITSTREAM_INTEGRATION=1 \
+POSTGRES_PORT=15432 \
+GOCACHE=/tmp/gitstream-go-cache \
+go test ./internal/storage -run Integration -count=1 -v
+```
+
+Expected result:
+
+```text
+TestClickHouseStoreIntegrationBatchInsertAndQuery ... PASS
+TestPostgresStoreIntegrationInsertAndRead ... PASS
+```
+
+If Compose Postgres is mapped to local port `5432`, omit `POSTGRES_PORT`.
+
+## Week 2 Fault Checkpoint
+
+This check records a simple processor interruption/restart boundary after the
+full processor path exists.
+
+Create a dedicated topic:
+
+```sh
+docker compose exec kafka \
+  /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server localhost:9092 \
+  --create \
+  --if-not-exists \
+  --topic github-events-week2-fault-check \
+  --partitions 1 \
+  --replication-factor 1
+```
+
+Produce two events:
+
+```sh
+docker compose exec -T kafka sh -c 'printf "%s\n%s\n" \
+  "codex/fault:{\"id\":\"week2-fault-1\",\"type\":\"PushEvent\",\"repo\":{\"name\":\"codex/fault\"},\"actor\":{\"login\":\"codex\"},\"created_at\":\"2026-05-08T17:00:00Z\"}" \
+  "codex/fault:{\"id\":\"week2-fault-2\",\"type\":\"WatchEvent\",\"repo\":{\"name\":\"codex/fault\"},\"actor\":{\"login\":\"codex\"},\"created_at\":\"2026-05-08T17:05:00Z\"}" \
+  | /opt/kafka/bin/kafka-console-producer.sh \
+      --bootstrap-server localhost:9092 \
+      --topic github-events-week2-fault-check \
+      --property parse.key=true \
+      --property key.separator=:'
+```
+
+Run the processor with a fresh consumer group:
+
+```sh
+set -a
+source .env
+set +a
+
+KAFKA_BROKERS=localhost:9092 \
+KAFKA_TOPIC=github-events-week2-fault-check \
+KAFKA_CONSUMER_GROUP=gitstream-week2-fault-check \
+WORKER_COUNT=2 \
+POSTGRES_PORT=15432 \
+GOCACHE=/tmp/gitstream-go-cache \
+go run ./cmd/processor
+```
+
+After processing and commit logs appear, interrupt the processor with `ctrl+c`
+or stop the process.
+
+Verify Postgres:
+
+```sh
+docker compose exec postgres sh -c \
+  'PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT id, type FROM events WHERE repo_name = '\''codex/fault'\'' ORDER BY id;"'
+```
+
+Expected rows:
+
+```text
+week2-fault-1 | PushEvent
+week2-fault-2 | WatchEvent
+```
+
+Verify ClickHouse:
+
+```sh
+docker compose exec clickhouse sh -c \
+  'clickhouse-client --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --database "$CLICKHOUSE_DB" --query "SELECT event_type, sum(count) FROM events_hourly WHERE repo_name = '\''codex/fault'\'' GROUP BY event_type ORDER BY event_type"'
+```
+
+Expected rows:
+
+```text
+PushEvent   1
+WatchEvent  1
+```
+
+Verify the Kafka group has no lag:
+
+```sh
+docker compose exec -T kafka \
+  /opt/kafka/bin/kafka-consumer-groups.sh \
+  --bootstrap-server localhost:9092 \
+  --describe \
+  --group gitstream-week2-fault-check
+```
+
+Expected result:
+
+```text
+Consumer group 'gitstream-week2-fault-check' has no active members.
+
+GROUP                       TOPIC                           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG
+gitstream-week2-fault-check github-events-week2-fault-check 0          2               2               0
+```
+
+The checkpoint passes when both databases contain the expected rows and Kafka
+shows `LAG=0`. That means the processor completed durable writes and committed
+the source offsets before the interruption boundary.
+
+Restart the processor with the same topic and consumer group:
+
+```sh
+set -a
+source .env
+set +a
+
+KAFKA_BROKERS=localhost:9092 \
+KAFKA_TOPIC=github-events-week2-fault-check \
+KAFKA_CONSUMER_GROUP=gitstream-week2-fault-check \
+WORKER_COUNT=2 \
+POSTGRES_PORT=15432 \
+GOCACHE=/tmp/gitstream-go-cache \
+go run ./cmd/processor
+```
+
+Expected restart behavior:
+
+```text
+starting service
+processor configuration validated
+```
+
+There should be no new `processed kafka message` logs for `week2-fault-1` or
+`week2-fault-2`, because the committed offset is already at the topic end.
+Interrupt the restarted processor after confirming it does not replay those
+messages.
+
 ## Why This Matters
 
 Fetching a Kafka message means:
