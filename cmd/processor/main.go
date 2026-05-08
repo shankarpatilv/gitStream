@@ -27,6 +27,7 @@ func main() {
 
 	consumerCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	metricsDone := startMetricsServer(consumerCtx, cfg.metricsPort)
 
 	consumer, err := kafka.NewConsumer(kafka.ConsumerConfig{
 		Brokers:       cfg.kafkaBrokers,
@@ -92,5 +93,6 @@ func main() {
 	}
 	closeConsumer(consumer)
 	closeDLQProducer(dlqProducer)
+	waitForMetricsServer(metricsDone)
 	slog.Info("service stopped", "service", service)
 }

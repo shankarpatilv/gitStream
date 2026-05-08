@@ -32,6 +32,7 @@ func runConsumer(
 			continue
 		}
 		offsets.Register(message)
+		processorConsumerLag.Inc()
 
 		event, err := decodeMessageEvent(message)
 		if err != nil {
@@ -64,7 +65,9 @@ func handleMalformedMessage(
 			"offset", message.Offset,
 			"error", err,
 		)
+		return
 	}
+	processorConsumerLag.Dec()
 }
 
 func enqueueJob(ctx context.Context, jobs chan<- job, next job) bool {

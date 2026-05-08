@@ -275,6 +275,7 @@ local development, while real environment variables still take priority.
 | --- | --- | --- |
 | `INGEST_PORT` | `8080` | ingest service HTTP port |
 | `KAFKA_PORT` | `9092` | local Kafka port |
+| `PROCESSOR_METRICS_PORT` | `8091` | processor Prometheus metrics port |
 | `POSTGRES_PORT` | `5432` | local PostgreSQL port |
 | `CLICKHOUSE_HTTP_PORT` | `8123` | local ClickHouse HTTP port |
 | `CLICKHOUSE_NATIVE_PORT` | `9000` | local ClickHouse native port |

@@ -115,6 +115,14 @@ HTTP/1.1 200 OK
 
 with Prometheus text-format metrics in the response body.
 
+Expected GitStream metric names include:
+
+```text
+gitstream_events_ingested_total
+gitstream_kafka_poll_duration_seconds
+gitstream_ingest_errors_total
+```
+
 ## Check Kafka Messages
 
 List topics:

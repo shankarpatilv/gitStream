@@ -44,8 +44,11 @@ func pollAndPublishGitHubEvents(
 	deduper *events.Deduper,
 	publisher eventPublisher,
 ) {
+	defer observePoll(time.Now())
+
 	rawEvents, err := fetchGitHubEvents(ctx, client, token)
 	if err != nil {
+		ingestErrors.WithLabelValues("github_poll").Inc()
 		slog.Error("github events poll failed", "error", err)
 		return
 	}

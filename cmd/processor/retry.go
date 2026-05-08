@@ -39,6 +39,7 @@ func processJobWithRetry(
 				err,
 			)
 		}
+		processorRetries.Inc()
 		if err := sleep(ctx, retryDelays[attempt-1]); err != nil {
 			return fmt.Errorf("wait before retrying event %q: %w", next.event.ID, err)
 		}
