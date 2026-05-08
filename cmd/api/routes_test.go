@@ -7,9 +7,18 @@ import (
 	"testing"
 )
 
+func testDependencies() apiDependencies {
+	return apiDependencies{
+		health: healthChecker{
+			postgres:   stubPinger{},
+			clickHouse: stubPinger{},
+		},
+		trending: &stubTrendingStore{},
+	}
+}
+
 func TestMetricsRouteReturnsPrometheusOutput(t *testing.T) {
-	checker := healthChecker{postgres: stubPinger{}, clickHouse: stubPinger{}}
-	server := httptest.NewServer(newRouter(checker))
+	server := httptest.NewServer(newRouter(testDependencies()))
 	defer server.Close()
 
 	resp, err := http.Get(server.URL + "/metrics")
