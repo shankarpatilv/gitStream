@@ -70,6 +70,7 @@ func main() {
 		clickHouseBatchSize,
 		clickHouseFlushInterval,
 	)
+	offsets := newOffsetTracker(consumer)
 
 	jobs := make(chan job, jobCapacity)
 	workerCtx, cancelWorkers := context.WithCancel(context.Background())
@@ -80,9 +81,10 @@ func main() {
 		jobs,
 		dlqProducer,
 		dualEventSink{postgres: postgresStore, clickHouse: clickHouseSink},
+		offsets,
 	)
 
-	runConsumer(consumerCtx, consumer, jobs)
+	runConsumer(consumerCtx, consumer, jobs, dlqProducer, offsets)
 	close(jobs)
 	// Closing the ClickHouse sink after workers drain flushes the final partial batch.
 	if waitForWorkers(workersDone, workerDrainTimeout, cancelWorkers) {

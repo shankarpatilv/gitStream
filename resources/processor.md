@@ -13,10 +13,11 @@ Kafka topic github-events
   -> write raw event to Postgres
   -> write analytics batches to ClickHouse
   -> publish exhausted failures to github-events-dlq
+  -> commit Kafka offsets after durable handling
 ```
 
-At this stage the processor writes Postgres and ClickHouse but does not commit
-offsets.
+The processor commits Kafka offsets only after Postgres and ClickHouse both
+succeed, or after an exhausted failure is successfully published to the DLQ.
 
 ## Requirements
 
@@ -151,7 +152,20 @@ docker compose exec clickhouse sh -c \
   'clickhouse-client --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --database "$CLICKHOUSE_DB" --query "SELECT timestamp, repo_name, event_type FROM events_timeseries ORDER BY timestamp DESC LIMIT 10"'
 ```
 
-## Create Topic
+## End-To-End Offset Commit Check
+
+This check proves the full processor behavior:
+
+```text
+Kafka message
+  -> Postgres write
+  -> ClickHouse write
+  -> Kafka offset commit
+```
+
+Use a dedicated topic and consumer group so the result is easy to inspect.
+
+## Create Test Topic
 
 ```sh
 docker compose exec -T kafka \
@@ -159,51 +173,54 @@ docker compose exec -T kafka \
   --bootstrap-server localhost:9092 \
   --create \
   --if-not-exists \
-  --topic github-events \
-  --partitions 3 \
+  --topic github-events-offset-check \
+  --partitions 1 \
   --replication-factor 1
 ```
 
-## Produce A Test Message
+## Produce Test Messages
 
 ```sh
-docker compose exec kafka \
-  /opt/kafka/bin/kafka-console-producer.sh \
-  --bootstrap-server localhost:9092 \
-  --topic github-events \
-  --property parse.key=true \
-  --property key.separator=:
-```
-
-Paste one keyed message, then press `ctrl+c`:
-
-```text
-codex/task2:{"id":"task2-1","type":"PushEvent","repo":{"name":"codex/task2"},"actor":{"login":"codex"},"created_at":"2026-05-06T21:30:00Z"}
+docker compose exec -T kafka sh -c 'printf "%s\n%s\n" \
+  "codex/offset:{\"id\":\"task10-offset-1\",\"type\":\"PushEvent\",\"repo\":{\"name\":\"codex/offset\"},\"actor\":{\"login\":\"codex\"},\"created_at\":\"2026-05-08T15:00:00Z\"}" \
+  "codex/offset:{\"id\":\"task10-offset-2\",\"type\":\"IssuesEvent\",\"repo\":{\"name\":\"codex/offset\"},\"actor\":{\"login\":\"codex\"},\"created_at\":\"2026-05-08T15:05:00Z\"}" \
+  | /opt/kafka/bin/kafka-console-producer.sh \
+      --bootstrap-server localhost:9092 \
+      --topic github-events-offset-check \
+      --property parse.key=true \
+      --property key.separator=:'
 ```
 
 The key before `:` is the Kafka message key. GitStream uses repo name as the
 key so events for the same repository stay in the same Kafka partition.
 
-## Run Processor
+## Run Processor Against Test Topic
 
-Use a fresh test consumer group so the run starts from the beginning of the
-topic:
+Use a fresh test consumer group so this run starts at the beginning of the
+temporary topic.
+
+If Compose Postgres is mapped to local port `5432`, omit `POSTGRES_PORT`.
 
 ```sh
 KAFKA_BROKERS=localhost:9092 \
-KAFKA_CONSUMER_GROUP=gitstream-task2-check \
+KAFKA_TOPIC=github-events-offset-check \
+KAFKA_CONSUMER_GROUP=gitstream-task10-offset-check \
+WORKER_COUNT=2 \
+POSTGRES_PORT=15432 \
+GOCACHE=/tmp/gitstream-go-cache \
 go run ./cmd/processor
 ```
 
 Expected logs include:
 
 ```json
-{"msg":"consumed kafka message","topic":"github-events","partition":0,"offset":0,"key":"codex/task2"}
+{"msg":"processed kafka message","topic":"github-events-offset-check","partition":0,"offset":0,"key":"codex/offset"}
+{"msg":"processed kafka message","topic":"github-events-offset-check","partition":0,"offset":1,"key":"codex/offset"}
+{"msg":"committed kafka offset","topic":"github-events-offset-check","partition":0,"offset":0}
+{"msg":"committed kafka offset","topic":"github-events-offset-check","partition":0,"offset":1}
 ```
 
-The exact partition and offset may differ.
-
-Stop the processor with `ctrl+c`.
+Stop the processor with `ctrl+c` after both commit logs appear.
 
 Expected shutdown logs:
 
@@ -213,26 +230,94 @@ kafka consumer closed
 service stopped
 ```
 
-## Verify Offsets Are Not Committed
+## Verify Postgres Received The Events
 
-Task 2 intentionally fetches messages without committing offsets. Check the
-test consumer group:
+```sh
+docker compose exec postgres sh -c \
+  'PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT id, type FROM events WHERE repo_name = '\''codex/offset'\'' ORDER BY id;"'
+```
+
+Expected rows:
+
+```text
+task10-offset-1 | PushEvent
+task10-offset-2 | IssuesEvent
+```
+
+## Verify ClickHouse Received The Events
+
+```sh
+docker compose exec clickhouse sh -c \
+  'clickhouse-client --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --database "$CLICKHOUSE_DB" --query "SELECT event_type, sum(count) FROM events_hourly WHERE repo_name = '\''codex/offset'\'' GROUP BY event_type ORDER BY event_type"'
+```
+
+Expected rows:
+
+```text
+IssuesEvent  1
+PushEvent    1
+```
+
+## Verify Offsets Are Committed
+
+Check the test consumer group after the processor handles a valid message:
 
 ```sh
 docker compose exec -T kafka \
   /opt/kafka/bin/kafka-consumer-groups.sh \
   --bootstrap-server localhost:9092 \
   --describe \
-  --group gitstream-task2-check
+  --group gitstream-task10-offset-check
 ```
 
-Expected after shutdown:
+Expected after shutdown: the group has no active members, and Kafka lists a
+committed offset for the topic partition.
 
 ```text
-Consumer group 'gitstream-task2-check' has no active members.
+GROUP                         TOPIC                      PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG
+gitstream-task10-offset-check github-events-offset-check 0          2               2               0
 ```
 
-There should be no committed offset rows listed for this test group.
+Kafka stores the next offset to read, so processing message offsets `0` and `1`
+shows `CURRENT-OFFSET` as `2`.
+
+## Optional: Verify Malformed Messages Go To DLQ
+
+Produce a malformed message:
+
+```sh
+docker compose exec -T kafka sh -c 'printf "%s\n" \
+  "codex/offset:{\"id\":" \
+  | /opt/kafka/bin/kafka-console-producer.sh \
+      --bootstrap-server localhost:9092 \
+      --topic github-events-offset-check \
+      --property parse.key=true \
+      --property key.separator=:'
+```
+
+Run the processor again with a fresh group:
+
+```sh
+KAFKA_BROKERS=localhost:9092 \
+KAFKA_TOPIC=github-events-offset-check \
+KAFKA_CONSUMER_GROUP=gitstream-task10-malformed-check \
+WORKER_COUNT=2 \
+POSTGRES_PORT=15432 \
+GOCACHE=/tmp/gitstream-go-cache \
+go run ./cmd/processor
+```
+
+Expected logs include:
+
+```text
+skipping malformed kafka message
+published malformed message to dlq
+committed kafka offset
+```
+
+The malformed payload is not written to Postgres or ClickHouse. It is preserved
+in `github-events-dlq`, and its source offset is committed only after DLQ
+publish succeeds.
 
 ## Why This Matters
 
@@ -248,10 +333,10 @@ Committing a Kafka offset means:
 tell Kafka this record is finished
 ```
 
-Those are different operations. The processor uses `FetchMessage` so later
-tasks can commit only after processing succeeds.
+Those are different operations. The processor uses `FetchMessage` so it can
+commit only after processing succeeds.
 
-Future flow:
+Current flow:
 
 ```text
 fetch Kafka message
@@ -260,6 +345,10 @@ write Postgres
 write ClickHouse
 commit offset only after both writes succeed
 ```
+
+With parallel workers, offsets can finish out of order. The processor tracks
+offset completion per partition and commits only the highest contiguous
+completed offset. That avoids committing past an unfinished earlier message.
 
 This is the base for at-least-once processing.
 

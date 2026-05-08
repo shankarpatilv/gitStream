@@ -37,7 +37,7 @@ func TestRunConsumerEnqueuesValidMessage(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		runConsumer(ctx, consumer, jobs)
+		runConsumer(ctx, consumer, jobs, &fakeDLQPublisher{}, testOffsetTracker())
 	}()
 
 	received := <-jobs
@@ -52,9 +52,16 @@ func TestRunConsumerEnqueuesValidMessage(t *testing.T) {
 func TestRunConsumerSkipsMalformedMessage(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	jobs := make(chan job, 1)
+	dlq := &fakeDLQPublisher{}
+	committer := &fakeOffsetCommitter{}
 	consumer := &fakeConsumer{
 		messages: []kafka.Message{
-			{Value: []byte(`{"id":`)},
+			{
+				Topic:  "github-events",
+				Offset: 0,
+				Key:    []byte("owner/repo"),
+				Value:  []byte(`{"id":`),
+			},
 			validMessage("event-2"),
 		},
 	}
@@ -62,12 +69,18 @@ func TestRunConsumerSkipsMalformedMessage(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		runConsumer(ctx, consumer, jobs)
+		runConsumer(ctx, consumer, jobs, dlq, newOffsetTracker(committer))
 	}()
 
 	received := <-jobs
 	if received.event.ID != "event-2" {
 		t.Fatalf("event ID = %q, want event-2", received.event.ID)
+	}
+	if dlq.writes != 1 {
+		t.Fatalf("dlq writes = %d, want 1", dlq.writes)
+	}
+	if len(committer.commits) != 1 || committer.commits[0].Offset != 0 {
+		t.Fatalf("commits = %#v, want offset 0", committer.commits)
 	}
 
 	cancel()
@@ -99,8 +112,10 @@ func TestEnqueueJobBlocksWhenQueueIsFull(t *testing.T) {
 
 func validMessage(id string) kafka.Message {
 	return kafka.Message{
-		Topic: "github-events",
-		Key:   []byte("owner/repo"),
+		Topic:     "github-events",
+		Partition: 0,
+		Offset:    0,
+		Key:       []byte("owner/repo"),
 		Value: []byte(`{
 			"id": "` + id + `",
 			"type": "PushEvent",
@@ -109,6 +124,10 @@ func validMessage(id string) kafka.Message {
 			"created_at": "2026-05-07T12:00:00Z"
 		}`),
 	}
+}
+
+func testOffsetTracker() *offsetTracker {
+	return newOffsetTracker(&fakeOffsetCommitter{})
 }
 
 var _ messageConsumer = (*fakeConsumer)(nil)
