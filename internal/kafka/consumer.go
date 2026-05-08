@@ -69,6 +69,19 @@ func (c *Consumer) FetchMessage(ctx context.Context) (Message, error) {
 	}, nil
 }
 
+// CommitMessage tells Kafka the message and earlier partition offsets are done.
+func (c *Consumer) CommitMessage(ctx context.Context, message Message) error {
+	err := c.reader.CommitMessages(ctx, kafkago.Message{
+		Topic:     message.Topic,
+		Partition: message.Partition,
+		Offset:    message.Offset,
+	})
+	if err != nil {
+		return fmt.Errorf("commit kafka message: %w", err)
+	}
+	return nil
+}
+
 // Close closes the underlying Kafka reader.
 func (c *Consumer) Close() error {
 	return c.reader.Close()
