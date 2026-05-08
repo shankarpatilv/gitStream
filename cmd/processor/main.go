@@ -14,28 +14,17 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
+	loadDotEnv(".env")
 	cfg, err := loadConfig()
 	if err != nil {
 		slog.Error("invalid processor configuration", "service", service, "error", err)
 		os.Exit(1)
 	}
 
-	slog.Info(
-		"starting service",
-		"service", service,
-		"kafka_brokers", cfg.kafkaBrokers,
-		"kafka_topic", cfg.kafkaTopic,
-		"kafka_dlq_topic", cfg.dlqTopic,
-		"consumer_group", cfg.consumerGroup,
-		"worker_count", cfg.workerCount,
-	)
+	logStartupConfig(cfg)
 	slog.Info("processor configuration validated", "service", service)
 
-	consumerCtx, stop := signal.NotifyContext(
-		context.Background(),
-		os.Interrupt,
-		syscall.SIGTERM,
-	)
+	consumerCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	consumer, err := kafka.NewConsumer(kafka.ConsumerConfig{
@@ -61,10 +50,23 @@ func main() {
 		os.Exit(1)
 	}
 
+	postgresStore, err := openPostgresStore(consumerCtx, cfg)
+	if err != nil {
+		slog.Error("could not open postgres", "service", service, "error", err)
+		os.Exit(1)
+	}
+	defer postgresStore.Close()
+
 	jobs := make(chan job, jobCapacity)
 	workerCtx, cancelWorkers := context.WithCancel(context.Background())
 	defer cancelWorkers()
-	workersDone := startWorkers(workerCtx, cfg.workerCount, jobs, dlqProducer)
+	workersDone := startWorkers(
+		workerCtx,
+		cfg.workerCount,
+		jobs,
+		dlqProducer,
+		postgresStore,
+	)
 
 	runConsumer(consumerCtx, consumer, jobs)
 	close(jobs)
