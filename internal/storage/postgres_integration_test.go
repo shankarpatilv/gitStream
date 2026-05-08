@@ -41,3 +41,40 @@ func TestPostgresStoreIntegrationInsertAndRead(t *testing.T) {
 		t.Fatalf("stored event count/type = %d/%q, want 1/PushEvent", count, eventType)
 	}
 }
+
+func TestPostgresStoreIntegrationRecentEvents(t *testing.T) {
+	requireIntegration(t)
+	ctx := integrationContext(t)
+
+	store, err := NewPostgresStore(ctx, integrationPostgresConfig())
+	if err != nil {
+		t.Fatalf("NewPostgresStore returned error: %v", err)
+	}
+	defer store.Close()
+	if err := store.EnsureSchema(ctx); err != nil {
+		t.Fatalf("EnsureSchema returned error: %v", err)
+	}
+
+	suffix := time.Now().UTC().Format("20060102150405.000000000")
+	repo := "integration/recent-" + suffix
+	older := integrationEvent("integration-recent-old-"+suffix, "PushEvent", repo)
+	newer := integrationEvent("integration-recent-new-"+suffix, "IssuesEvent", repo)
+	newer.CreatedAt = older.CreatedAt.Add(10 * time.Minute)
+	if err := store.InsertEvent(ctx, older); err != nil {
+		t.Fatalf("insert older event: %v", err)
+	}
+	if err := store.InsertEvent(ctx, newer); err != nil {
+		t.Fatalf("insert newer event: %v", err)
+	}
+
+	events, err := store.RecentEvents(ctx, repo, 10)
+	if err != nil {
+		t.Fatalf("RecentEvents returned error: %v", err)
+	}
+	if len(events) < 2 {
+		t.Fatalf("len(events) = %d, want at least 2", len(events))
+	}
+	if events[0].ID != newer.ID || events[1].ID != older.ID {
+		t.Fatalf("events ordered as %q then %q", events[0].ID, events[1].ID)
+	}
+}

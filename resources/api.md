@@ -151,6 +151,57 @@ The Phase 3 local check returned:
 0.014763
 ```
 
+## Recent Events
+
+Insert sample raw events for a repo directly into local Postgres:
+
+```sh
+docker compose exec -T postgres sh -c \
+  'PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+INSERT INTO events (id, type, repo_name, actor_name, created_at, payload)
+VALUES
+  ('api-recent-1', 'PushEvent', 'codex/recent', 'codex', now() - interval '5 minutes', '{}'::jsonb),
+  ('api-recent-2', 'IssuesEvent', 'codex/recent', 'codex', now(), '{}'::jsonb)
+ON CONFLICT (id) DO NOTHING;
+SQL
+```
+
+Query recent raw events from the API:
+
+```sh
+curl -i 'localhost:8090/api/events/recent?repo=codex/recent&limit=5'
+```
+
+Expected:
+
+```text
+HTTP/1.1 200 OK
+```
+
+with newest events first:
+
+```json
+{
+  "repo": "codex/recent",
+  "limit": 5,
+  "events": [
+    {
+      "id": "api-recent-2",
+      "type": "IssuesEvent",
+      "repo_name": "codex/recent",
+      "actor_name": "codex"
+    }
+  ]
+}
+```
+
+Missing `repo` or bad `limit` values should return `400`:
+
+```sh
+curl -i 'localhost:8090/api/events/recent'
+curl -i 'localhost:8090/api/events/recent?repo=codex/recent&limit=0'
+```
+
 ## Tests
 
 Run the normal suite:
