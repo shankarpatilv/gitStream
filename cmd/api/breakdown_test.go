@@ -55,6 +55,17 @@ func TestBreakdownRejectsBadHours(t *testing.T) {
 	}
 }
 
+func TestBreakdownRejectsHoursAboveMax(t *testing.T) {
+	recorder := httptest.NewRecorder()
+
+	request := httptest.NewRequest(http.MethodGet, "/api/stats/breakdown?hours=169", nil)
+	breakdownHandler(&stubBreakdownStore{}).ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", recorder.Code)
+	}
+}
+
 func TestBreakdownAllowsEmptyResults(t *testing.T) {
 	recorder := httptest.NewRecorder()
 

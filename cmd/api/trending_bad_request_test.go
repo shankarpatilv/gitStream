@@ -31,6 +31,18 @@ func TestTrendingRejectsBadLimit(t *testing.T) {
 	}
 }
 
+func TestTrendingRejectsLimitAboveMax(t *testing.T) {
+	store := &stubTrendingStore{}
+	recorder := httptest.NewRecorder()
+
+	request := httptest.NewRequest(http.MethodGet, "/api/trending?limit=101", nil)
+	trendingHandler(store).ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", recorder.Code)
+	}
+}
+
 func TestTrendingReturnsUnavailableOnStoreError(t *testing.T) {
 	store := &stubTrendingStore{err: errors.New("down")}
 	recorder := httptest.NewRecorder()
