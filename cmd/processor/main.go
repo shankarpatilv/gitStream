@@ -11,11 +11,6 @@ import (
 )
 
 func main() {
-	const (
-		service     = "processor"
-		jobCapacity = 100
-	)
-
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
@@ -36,7 +31,7 @@ func main() {
 	)
 	slog.Info("processor configuration validated", "service", service)
 
-	ctx, stop := signal.NotifyContext(
+	consumerCtx, stop := signal.NotifyContext(
 		context.Background(),
 		os.Interrupt,
 		syscall.SIGTERM,
@@ -67,9 +62,13 @@ func main() {
 	}
 
 	jobs := make(chan job, jobCapacity)
-	startWorkers(ctx, cfg.workerCount, jobs, dlqProducer)
+	workerCtx, cancelWorkers := context.WithCancel(context.Background())
+	defer cancelWorkers()
+	workersDone := startWorkers(workerCtx, cfg.workerCount, jobs, dlqProducer)
 
-	runConsumer(ctx, consumer, jobs)
+	runConsumer(consumerCtx, consumer, jobs)
+	close(jobs)
+	waitForWorkers(workersDone, workerDrainTimeout, cancelWorkers)
 	closeConsumer(consumer)
 	closeDLQProducer(dlqProducer)
 	slog.Info("service stopped", "service", service)
