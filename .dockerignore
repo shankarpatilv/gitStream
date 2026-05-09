@@ -1,0 +1,45 @@
+# Development and local files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.staging
+
+# Documentation and private files
+AGENTS.md
+docs/
+memories/
+tasks/
+README.md
+*.md
+
+# Git and IDE
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# Build artifacts
+*.log
+*.tmp
+.cache/
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+
+# Testing
+coverage.out
+*.test
+
+# OS files
+.DS_Store
+Thumbs.db
+*~
+
+# Node modules (if any)
+node_modules/
+
+# Go specific
+vendor/
