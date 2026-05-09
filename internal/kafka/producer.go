@@ -53,11 +53,19 @@ func (p *Producer) Publish(ctx context.Context, event events.GitHubEvent) error 
 
 // PublishRaw writes a message while preserving the caller-provided key/value.
 func (p *Producer) PublishRaw(ctx context.Context, key, value []byte) error {
-	message := kafkago.Message{
-		Key:   append([]byte(nil), key...),
-		Value: append([]byte(nil), value...),
+	return p.PublishRawBatch(ctx, []RawMessage{{Key: key, Value: value}})
+}
+
+// PublishRawBatch writes messages while preserving caller-provided keys/values.
+func (p *Producer) PublishRawBatch(ctx context.Context, raw []RawMessage) error {
+	messages := make([]kafkago.Message, 0, len(raw))
+	for _, next := range raw {
+		messages = append(messages, kafkago.Message{
+			Key:   append([]byte(nil), next.Key...),
+			Value: append([]byte(nil), next.Value...),
+		})
 	}
-	if err := p.writer.WriteMessages(ctx, message); err != nil {
+	if err := p.writer.WriteMessages(ctx, messages...); err != nil {
 		return fmt.Errorf("write kafka message: %w", err)
 	}
 	return nil

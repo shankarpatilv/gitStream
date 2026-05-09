@@ -197,9 +197,45 @@ Core metrics:
 - `gitstream_active_workers`
 
 The Grafana dashboard focuses on the things that tell you whether the system is
-healthy: event throughput, consumer lag, DLQ depth, processing latency, and
-database write latency. The importable dashboard JSON lives at
-`grafana/dashboard.json`.
+healthy: event throughput, consumer lag, DLQ depth, processing latency,
+database write latency, and benchmark-visible processed-event totals. The
+importable dashboard JSON lives at `grafana/dashboard.json`.
+
+## Benchmarks
+
+These are local numbers from 2026-05-09. The benchmark commands and live-smoke
+checklist live in `resources/benchmarks.md`.
+
+```text
+Kafka load publish
+  1,000 synthetic GitHub-like events in 1.06s
+  ~945 events/sec
+
+Processor worker path
+  1,000 events through Kafka -> workers -> Postgres -> ClickHouse -> commit
+  final Kafka lag: 0
+  failures: 0
+  DLQ depth: 0
+
+Processor latency
+  processing p95: <=100ms
+  Postgres write p95: <=50ms
+  ClickHouse write p95: <=25ms
+
+ClickHouse/API read path
+  1,000,000 seeded analytics rows
+  /api/trending?hours=24&limit=10 in 0.037935s
+```
+
+The 1,000-event worker benchmark goes through the real processor path. The
+1,000,000-row benchmark is read-only: it seeds ClickHouse directly and measures
+query speed through the API.
+
+Grafana includes benchmark-friendly panels for the worker run:
+
+- `Processed Events Total`: exact processor counter.
+- `Processed Events Last 15m Estimate`: recent benchmark-window count.
+- `Event Throughput`: events per second over time.
 
 ## Tech Stack
 
@@ -224,6 +260,7 @@ cmd/
   ingest/       GitHub poller and Kafka producer
   processor/    Kafka consumer, worker pool, and storage writer
   api/          REST API and dashboard server
+  load-kafka/   Synthetic Kafka load generator for benchmarks
 internal/
   events/       event models, parsing, filtering, and deduplication
   kafka/        producer and consumer wrappers
@@ -233,6 +270,7 @@ monitoring/
 grafana/
   dashboard.json
 resources/
+  benchmarks.md
   observability.md
 docker-compose.yml
 .env.example
@@ -279,6 +317,7 @@ local development, while real environment variables still take priority.
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `INGEST_PORT` | `8080` | ingest service HTTP port |
+| `API_PORT` | `8090` | API service HTTP port |
 | `KAFKA_PORT` | `9092` | local Kafka port |
 | `PROCESSOR_METRICS_PORT` | `8091` | processor Prometheus metrics port |
 | `POSTGRES_PORT` | `5432` | local PostgreSQL port |
