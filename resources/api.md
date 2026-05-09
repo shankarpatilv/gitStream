@@ -386,7 +386,6 @@ The page polls these live API endpoints every 5 seconds:
 
 ```text
 /health
-/api/stats/pipeline
 /api/trending?hours=24&limit=10
 /api/stats/breakdown?hours=24
 /api/events/recent?repo=<selected>&limit=10

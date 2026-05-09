@@ -24,6 +24,12 @@ func TestDashboardRouteServesHTML(t *testing.T) {
 	if !strings.Contains(recorder.Body.String(), "GitStream") {
 		t.Fatalf("expected dashboard HTML, got %s", recorder.Body.String())
 	}
+	if strings.Contains(recorder.Body.String(), "Pipeline Snapshot") {
+		t.Fatalf("dashboard should not show API-local pipeline counters")
+	}
+	if strings.Contains(recorder.Body.String(), "/api/stats/pipeline") {
+		t.Fatalf("dashboard should not poll API-local pipeline counters")
+	}
 }
 
 func TestRootRedirectsToDashboard(t *testing.T) {
