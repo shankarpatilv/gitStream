@@ -312,6 +312,36 @@ docker compose up
 Docker Compose reads `.env` automatically. The Go services also load `.env` for
 local development, while real environment variables still take priority.
 
+## Docker Build
+
+Each service has a production-ready multi-stage Dockerfile that builds optimized
+images:
+
+```sh
+# Build all service images
+docker build -f cmd/ingest/Dockerfile -t gitstream-ingest .
+docker build -f cmd/processor/Dockerfile -t gitstream-processor .
+docker build -f cmd/api/Dockerfile -t gitstream-api .
+```
+
+The Dockerfiles use multi-stage builds:
+- **Build stage:** `golang:1.25-alpine` with Go toolchain for compilation
+- **Runtime stage:** `alpine:latest` with only the binary and certificates
+
+Key optimizations:
+- Static linking with `CGO_ENABLED=0` for portable binaries
+- Non-root user (UID/GID 1001) for security  
+- Minimal runtime dependencies (ca-certificates, tzdata)
+- Health checks on service endpoints
+- Image sizes: ingest ~47MB, processor ~62MB, API ~58MB
+
+For production deployment on Fly.io:
+
+```sh
+# Deploy a service (requires flyctl and Fly.io setup)
+flyctl deploy --dockerfile cmd/ingest/Dockerfile
+```
+
 ## Configuration
 
 | Variable | Default | Purpose |
