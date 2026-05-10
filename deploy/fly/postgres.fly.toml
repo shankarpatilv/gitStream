@@ -1,0 +1,21 @@
+app = "gitstream-postgres-demo"
+primary_region = "iad"
+kill_signal = "SIGINT"
+kill_timeout = "30s"
+
+[build]
+  dockerfile = "postgres/Dockerfile"
+
+[env]
+  PGDATA = "/var/lib/postgresql/data/pgdata"
+  POSTGRES_DB = "gitstream"
+  POSTGRES_USER = "gitstream"
+
+[mounts]
+  source = "postgres_data"
+  destination = "/var/lib/postgresql/data"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "512mb"

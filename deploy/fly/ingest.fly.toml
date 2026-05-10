@@ -1,0 +1,16 @@
+app = "gitstream-ingest-demo"
+primary_region = "iad"
+kill_signal = "SIGINT"
+kill_timeout = "5s"
+
+[build]
+  dockerfile = "../../cmd/ingest/Dockerfile"
+
+[env]
+  INGEST_PORT = "8080"
+  KAFKA_TOPIC = "github-events"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "256mb"

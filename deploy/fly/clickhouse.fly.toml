@@ -1,0 +1,21 @@
+app = "gitstream-clickhouse-demo"
+primary_region = "iad"
+kill_signal = "SIGINT"
+kill_timeout = "30s"
+
+[build]
+  dockerfile = "clickhouse/Dockerfile"
+
+[env]
+  CLICKHOUSE_DB = "gitstream"
+  CLICKHOUSE_USER = "gitstream"
+  CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT = "1"
+
+[mounts]
+  source = "clickhouse_data"
+  destination = "/var/lib/clickhouse"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "1024mb"
