@@ -9,7 +9,7 @@ import (
 )
 
 // newDialer supports local plaintext Kafka and future SASL/TLS cloud Kafka.
-func newDialer(username, password string) *kafkago.Dialer {
+func newDialer(brokers []string, username, password string) *kafkago.Dialer {
 	dialer := &kafkago.Dialer{
 		Timeout:   10 * time.Second,
 		DualStack: true,
@@ -18,7 +18,7 @@ func newDialer(username, password string) *kafkago.Dialer {
 		return dialer
 	}
 
-	dialer.TLS = &tls.Config{MinVersion: tls.VersionTLS12}
+	dialer.TLS = &tls.Config{MinVersion: tls.VersionTLS12, ServerName: tlsServerName(brokers)}
 	dialer.SASLMechanism = plain.Mechanism{
 		Username: username,
 		Password: password,

@@ -48,7 +48,7 @@ func NewConsumer(config ConsumerConfig) (*Consumer, error) {
 		MinBytes:    1,
 		MaxBytes:    10e6,
 		MaxWait:     1 * time.Second,
-		Dialer:      newDialer(config.Username, config.Password),
+		Dialer:      newDialer(config.Brokers, config.Username, config.Password),
 		StartOffset: kafkago.FirstOffset,
 	})
 	return &Consumer{reader: reader}, nil

@@ -17,6 +17,8 @@ if [[ "${FLY_DESTROY_CONFIRM:-}" != "destroy" ]]; then
 fi
 
 apps=(
+  "${GITSTREAM_FLY_PREFIX}-grafana"
+  "${GITSTREAM_FLY_PREFIX}-prometheus"
   "${GITSTREAM_FLY_PREFIX}-api"
   "${GITSTREAM_FLY_PREFIX}-ingest"
   "${GITSTREAM_FLY_PREFIX}-processor"
