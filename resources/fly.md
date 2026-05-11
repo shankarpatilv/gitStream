@@ -11,6 +11,13 @@ dashboard URL, take screenshots, then tear the apps down to avoid ongoing cost.
 - `postgres`: self-hosted Postgres 15 on a 1GB Fly Volume.
 - `clickhouse`: self-hosted ClickHouse 24.8 on a 5GB Fly Volume.
 
+Optional observability add-on:
+
+- `prometheus`: scrapes deployed GitStream service metrics over Fly private
+  networking.
+- `grafana`: serves the provisioned GitStream Pipeline dashboard with a
+  Prometheus datasource and a 1GB Fly Volume.
+
 Kafka is not deployed by this repo. The Fly demo expects an external Kafka
 broker with SASL/TLS credentials, such as Confluent Cloud.
 
@@ -60,6 +67,13 @@ export KAFKA_PASSWORD="..."
 export GITHUB_TOKEN="..."
 ```
 
+Optional observability values:
+
+```sh
+export GITSTREAM_FLY_OBSERVABILITY="1"
+export GRAFANA_ADMIN_PASSWORD="..."
+```
+
 The prefix creates five app names:
 
 ```text
@@ -68,6 +82,13 @@ The prefix creates five app names:
 <prefix>-processor
 <prefix>-ingest
 <prefix>-api
+```
+
+With observability enabled, the same prefix also creates:
+
+```text
+<prefix>-prometheus
+<prefix>-grafana
 ```
 
 ## Deploy
@@ -87,6 +108,9 @@ The script:
 - imports runtime secrets without printing secret values;
 - deploys Postgres and ClickHouse first;
 - deploys processor, ingest, and API;
+- when `GITSTREAM_FLY_OBSERVABILITY=1`, creates Prometheus and Grafana apps,
+  creates a 1GB Grafana volume, provisions the datasource and dashboard, and
+  deploys both observability apps;
 - prints the dashboard URL.
 
 Postgres uses `PGDATA=/var/lib/postgresql/data/pgdata` so the official
@@ -118,6 +142,35 @@ Expected result:
 - Processor logs processed events.
 - Dashboard loads at `https://<prefix>-api.fly.dev/dashboard`.
 
+## Verify Observability
+
+When `GITSTREAM_FLY_OBSERVABILITY=1`, Prometheus stays private and Grafana is
+the public observability entry point:
+
+```text
+https://<prefix>-grafana.fly.dev
+```
+
+Log in with user `admin` and the private `GRAFANA_ADMIN_PASSWORD` value from
+your local demo env file. The `GitStream / GitStream Pipeline` dashboard is
+provisioned automatically from `grafana/dashboard.json`, with the datasource
+pointing at `http://<prefix>-prometheus.internal:9090`.
+
+Verify the private Prometheus datasource through Grafana's authenticated API:
+
+```sh
+GRAFANA_AUTH="admin:${GRAFANA_ADMIN_PASSWORD}"
+
+curl -u "$GRAFANA_AUTH" \
+  "https://${GITSTREAM_FLY_PREFIX}-grafana.fly.dev/api/datasources/proxy/uid/gitstream-prometheus/api/v1/query?query=up"
+
+curl -u "$GRAFANA_AUTH" \
+  "https://${GITSTREAM_FLY_PREFIX}-grafana.fly.dev/api/datasources/proxy/uid/gitstream-prometheus/api/v1/query?query=gitstream_events_ingested_total"
+```
+
+Prometheus target state should show the ingest, processor, and API jobs with
+`up=1` once the services are running and exposing `/metrics`.
+
 If a database Machine is stopped during a trial or after a failed deploy, start
 it explicitly:
 
@@ -147,6 +200,11 @@ This is a temporary demo setup. It runs five Fly apps plus two persistent
 volumes. Expect ongoing cost while the apps and volumes exist. Tear down the
 demo after viewing the dashboard unless you intentionally want to keep it live.
 
+Enabling observability adds two more Fly apps and a 1GB Grafana volume.
+Prometheus storage is ephemeral in this demo; Grafana uses a volume so local
+UI state survives app restarts during the temporary demo. Tear down the whole
+demo when screenshots or review are complete.
+
 ## Config Files
 
 ```text
@@ -155,6 +213,8 @@ deploy/fly/ingest.fly.toml
 deploy/fly/processor.fly.toml
 deploy/fly/postgres.fly.toml
 deploy/fly/clickhouse.fly.toml
+deploy/fly/prometheus.fly.toml
+deploy/fly/grafana.fly.toml
 ```
 
 The checked-in `app` names are placeholders. The deploy script uses
