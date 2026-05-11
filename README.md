@@ -96,17 +96,17 @@ still exposing a small normalized shape to the rest of the pipeline.
 
 ## Kafka Design
 
-| Setting | Value |
-| --- | --- |
-| Main topic | `github-events` |
-| DLQ topic | `github-events-dlq` |
-| Partitions | `3` |
-| Partition key | `repo_name` |
-| Producer acknowledgements | `acks=1` |
-| Consumer commits | manual, after successful storage writes |
-| Retry policy | `100ms -> 500ms -> 2s -> DLQ` |
-| Main retention | 24 hours |
-| DLQ retention | 7 days |
+| Setting                   | Value                                   |
+| ------------------------- | --------------------------------------- |
+| Main topic                | `github-events`                         |
+| DLQ topic                 | `github-events-dlq`                     |
+| Partitions                | `3`                                     |
+| Partition key             | `repo_name`                             |
+| Producer acknowledgements | `acks=1`                                |
+| Consumer commits          | manual, after successful storage writes |
+| Retry policy              | `100ms -> 500ms -> 2s -> DLQ`           |
+| Main retention            | 24 hours                                |
+| DLQ retention             | 7 days                                  |
 
 This is deliberately small enough to run locally, but it still uses the core
 Kafka concepts that matter in production: partition keys, consumer groups,
@@ -203,33 +203,38 @@ importable dashboard JSON lives at `grafana/dashboard.json`.
 
 ## Benchmarks
 
-These are local numbers from 2026-05-09. The benchmark commands and live-smoke
+These are measured local numbers. The benchmark commands and live-smoke
 checklist live in `resources/benchmarks.md`.
 
 ```text
-Kafka load publish
-  1,000 synthetic GitHub-like events in 1.06s
-  ~945 events/sec
+Kafka publish load, measured 2026-05-11
+  1,000,000 synthetic GitHub-like events
+  published in 108.27s
+  publisher throughput: 9,236 events/sec
 
-Processor worker path
-  1,000 events through Kafka -> workers -> Postgres -> ClickHouse -> commit
+Processor worker path, measured 2026-05-11
+  1,000,000 events through Kafka -> workers -> Postgres -> ClickHouse -> commit
+  processor workers: 100
+  Postgres rows: 1,000,000
+  ClickHouse analytics count: 1,000,000
   final Kafka lag: 0
   failures: 0
   DLQ depth: 0
 
-Processor latency
+Processor latency, measured 2026-05-09
   processing p95: <=100ms
   Postgres write p95: <=50ms
   ClickHouse write p95: <=25ms
 
-ClickHouse/API read path
+ClickHouse/API read path, measured 2026-05-09
   1,000,000 seeded analytics rows
   /api/trending?hours=24&limit=10 in 0.037935s
 ```
 
-The 1,000-event worker benchmark goes through the real processor path. The
-1,000,000-row benchmark is read-only: it seeds ClickHouse directly and measures
-query speed through the API.
+The 1,000,000-event worker benchmark goes through the real local processor
+path. Synthetic data is used only for load testing; the live smoke path still
+uses GitHub Public Events. The 1,000,000-row ClickHouse benchmark is read-only:
+it seeds ClickHouse directly and measures query speed through the API.
 
 Grafana includes benchmark-friendly panels for the worker run:
 
@@ -239,19 +244,19 @@ Grafana includes benchmark-friendly panels for the worker run:
 
 ## Tech Stack
 
-| Layer | Technology |
-| --- | --- |
-| Language | Go 1.25+ |
-| HTTP router | chi v5 |
-| Message queue | Kafka |
-| Kafka client | segmentio/kafka-go |
-| OLTP database | PostgreSQL 15 |
-| OLAP database | ClickHouse 24 |
-| Logging | Go standard library `slog` |
-| Metrics | Prometheus + Grafana |
-| Local development | Docker Compose |
-| Deployment target | Fly.io |
-| CI/CD | GitHub Actions |
+| Layer             | Technology                 |
+| ----------------- | -------------------------- |
+| Language          | Go 1.25+                   |
+| HTTP router       | chi v5                     |
+| Message queue     | Kafka                      |
+| Kafka client      | segmentio/kafka-go         |
+| OLTP database     | PostgreSQL 15              |
+| OLAP database     | ClickHouse 24              |
+| Logging           | Go standard library `slog` |
+| Metrics           | Prometheus + Grafana       |
+| Local development | Docker Compose             |
+| Deployment target | Fly.io                     |
+| CI/CD             | Planned GitHub Actions     |
 
 ## Repository Layout
 
@@ -326,12 +331,14 @@ docker build -f cmd/api/Dockerfile -t gitstream-api .
 ```
 
 The Dockerfiles use multi-stage builds:
+
 - **Build stage:** `golang:1.25-alpine` with Go toolchain for compilation
 - **Runtime stage:** `alpine:latest` with only the binary and certificates
 
 Key optimizations:
+
 - Static linking with `CGO_ENABLED=0` for portable binaries
-- Non-root user (UID/GID 1001) for security  
+- Non-root user (UID/GID 1001) for security
 - Minimal runtime dependencies (ca-certificates, tzdata)
 - Health checks on service endpoints
 - Image sizes: ingest ~47MB, processor ~62MB, API ~58MB
@@ -354,49 +361,41 @@ credentials. The full deploy, verification, and teardown workflow lives in
 
 ## Configuration
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `INGEST_PORT` | `8080` | ingest service HTTP port |
-| `API_PORT` | `8090` | API service HTTP port |
-| `KAFKA_PORT` | `9092` | local Kafka port |
-| `PROCESSOR_METRICS_PORT` | `8091` | processor Prometheus metrics port |
-| `POSTGRES_PORT` | `5432` | local PostgreSQL port |
-| `CLICKHOUSE_HTTP_PORT` | `8123` | local ClickHouse HTTP port |
-| `CLICKHOUSE_NATIVE_PORT` | `9000` | local ClickHouse native port |
-| `PROMETHEUS_PORT` | `9090` | local Prometheus port |
-| `GRAFANA_PORT` | `3000` | local Grafana port |
-| `POSTGRES_DB` | `gitstream` | local PostgreSQL database |
-| `POSTGRES_USER` | `gitstream` | local PostgreSQL user |
-| `POSTGRES_PASSWORD` | `gitstream` | local PostgreSQL password |
-| `CLICKHOUSE_DB` | `gitstream` | local ClickHouse database |
-| `CLICKHOUSE_USER` | `gitstream` | local ClickHouse user |
-| `CLICKHOUSE_PASSWORD` | `gitstream` | local ClickHouse password |
-| `GRAFANA_ADMIN_USER` | `admin` | local Grafana admin user |
-| `GRAFANA_ADMIN_PASSWORD` | `admin` | local Grafana admin password |
+| Variable                 | Default     | Purpose                           |
+| ------------------------ | ----------- | --------------------------------- |
+| `INGEST_PORT`            | `8080`      | ingest service HTTP port          |
+| `API_PORT`               | `8090`      | API service HTTP port             |
+| `KAFKA_PORT`             | `9092`      | local Kafka port                  |
+| `PROCESSOR_METRICS_PORT` | `8091`      | processor Prometheus metrics port |
+| `POSTGRES_PORT`          | `5432`      | local PostgreSQL port             |
+| `CLICKHOUSE_HTTP_PORT`   | `8123`      | local ClickHouse HTTP port        |
+| `CLICKHOUSE_NATIVE_PORT` | `9000`      | local ClickHouse native port      |
+| `PROMETHEUS_PORT`        | `9090`      | local Prometheus port             |
+| `GRAFANA_PORT`           | `3000`      | local Grafana port                |
+| `POSTGRES_DB`            | `gitstream` | local PostgreSQL database         |
+| `POSTGRES_USER`          | `gitstream` | local PostgreSQL user             |
+| `POSTGRES_PASSWORD`      | `gitstream` | local PostgreSQL password         |
+| `CLICKHOUSE_DB`          | `gitstream` | local ClickHouse database         |
+| `CLICKHOUSE_USER`        | `gitstream` | local ClickHouse user             |
+| `CLICKHOUSE_PASSWORD`    | `gitstream` | local ClickHouse password         |
+| `GRAFANA_ADMIN_USER`     | `admin`     | local Grafana admin user          |
+| `GRAFANA_ADMIN_PASSWORD` | `admin`     | local Grafana admin password      |
 
 ## Local Infrastructure
 
-| Service | Port |
-| --- | --- |
-| Kafka | `9092` |
-| PostgreSQL | `5432` |
-| ClickHouse HTTP | `8123` |
+| Service           | Port   |
+| ----------------- | ------ |
+| Kafka             | `9092` |
+| PostgreSQL        | `5432` |
+| ClickHouse HTTP   | `8123` |
 | ClickHouse native | `9000` |
-| Prometheus | `9090` |
-| Grafana | `3000` |
+| Prometheus        | `9090` |
+| Grafana           | `3000` |
 
-## Build Plan
+## Conclusion
 
-The project is built in four phases:
-
-1. Ingest service: GitHub polling, filtering, deduplication, Kafka publishing,
-   `/health`, `/metrics`, and graceful shutdown.
-2. Processor service: Kafka consumer, bounded worker pool, retries, DLQ, and
-   storage writes.
-3. API and dashboard: read endpoints backed by PostgreSQL and ClickHouse, plus a
-   live dashboard.
-4. Operations and launch: Prometheus, Grafana, deployment, CI/CD, load testing,
-   and final documentation.
-
-The first priority is a working end-to-end path with real GitHub data. Polish
-comes after the pipeline is reliable and measurable.
+GitStream is a compact backend systems project with the parts that matter in a
+real streaming service: a live external source, Kafka as the event boundary,
+manual offset commits, idempotent raw storage, analytical storage, a bounded
+worker pool, retries, a DLQ, metrics, dashboards, and deployable service
+containers.
