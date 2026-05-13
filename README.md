@@ -22,6 +22,8 @@ exposing enough metrics to understand whether the pipeline is healthy.
 
 ## System Flow
 
+![GitStream low-level design](resources/gitstream_lld.png)
+
 ```text
 GitHub Public Events API
   -> ingest service
