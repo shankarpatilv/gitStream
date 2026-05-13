@@ -158,6 +158,24 @@ Expected result:
 
 ## Worker Benchmark Result
 
+Measured locally on 2026-05-11:
+
+```text
+events: 1,000,000
+publisher duration: 108.27 sec
+publisher throughput: 9,236 events/sec
+processor workers: 100
+Postgres rows: 1,000,000
+ClickHouse analytics count: 1,000,000
+final Kafka lag: 0
+failures: 0
+DLQ depth: 0
+```
+
+The 2026-05-11 run used prefix `local-1m-20260511164520` on
+`github-events-bench`. The processor metric showed `1,000,010` processed events
+because a 10-event smoke test ran immediately before the 1M benchmark.
+
 Measured locally on 2026-05-09:
 
 ```text
