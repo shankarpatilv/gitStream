@@ -1,5 +1,9 @@
 # GitStream
 
+![Go](https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go&logoColor=white) ![API](https://img.shields.io/badge/API-chi%20v5-4B8BBE) ![Kafka](https://img.shields.io/badge/Streaming-kafka--go-231F20?logo=apachekafka&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgx%2Fv5-4169E1?logo=postgresql&logoColor=white) ![ClickHouse](https://img.shields.io/badge/Analytics-ClickHouse-FFCC01?logo=clickhouse&logoColor=black)
+![Docker](https://img.shields.io/badge/Dev-Docker-2496ED?logo=docker&logoColor=white) ![Logging](https://img.shields.io/badge/Logging-slog-5C5C5C)
+
 GitStream is a real-time analytics pipeline for public GitHub activity.
 
 It watches GitHub's public event stream, keeps the events that are useful for
